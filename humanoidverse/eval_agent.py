@@ -78,7 +78,13 @@ def main(override_config: OmegaConf):
 
     pre_process_config(config)
 
-    device = "cuda:0" if torch.cuda.is_available() else "cpu"
+    if hasattr(config, 'device'):
+        if config.device is not None:
+            device = config.device
+        else:
+            device = "cuda:0" if torch.cuda.is_available() else "cpu"
+    else:
+        device = "cuda:0" if torch.cuda.is_available() else "cpu"
 
     eval_log_dir = Path(config.eval_log_dir)
     eval_log_dir.mkdir(parents=True, exist_ok=True)

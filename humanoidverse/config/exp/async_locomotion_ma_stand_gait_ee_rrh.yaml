@@ -10,6 +10,6 @@ defaults:
   - /robot: g1/g1_27dof_fakehand_ee_rrh
   - /terrain: terrain_locomotion_plane 
 
-num_envs: 4096
+num_envs: 1
 project_name: holdmybeer
 experiment_name: release

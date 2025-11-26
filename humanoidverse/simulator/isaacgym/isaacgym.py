@@ -76,12 +76,17 @@ class IsaacGym(BaseSimulator):
         sim_params.physx.num_position_iterations = self.simulator_config.sim.physx.num_position_iterations
         sim_params.physx.num_velocity_iterations = self.simulator_config.sim.physx.num_velocity_iterations
         sim_params.physx.num_threads = self.simulator_config.sim.physx.num_threads
-        sim_params.physx.use_gpu = True
         sim_params.physx.num_subscenes = 0
         # sim_params.physx.max_gpu_contact_pairs = (
         #     self.config.robot.contact_pairs_multiplier * 1024 * 1024
         # )
-        sim_params.use_gpu_pipeline = True
+        if self.sim_device == 'cpu':
+            sim_params.physx.use_gpu = False
+            sim_params.use_gpu_pipeline = False
+
+        else:
+            sim_params.physx.use_gpu = True
+            sim_params.use_gpu_pipeline = True
 
         gymutil.parse_sim_config(self.simulator_config.sim, sim_params)
         return sim_params
