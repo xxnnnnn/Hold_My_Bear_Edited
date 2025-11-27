@@ -104,7 +104,16 @@ class LeggedRobotLocomotionStanceGaitEETracking(LeggedRobotLocomotionStanceGait)
     
     def _setup_simulator_control(self):
         super()._setup_simulator_control()
-        self.simulator.ee_commands = self.ee_commands
+        if self.is_evaluating:
+            # In evaluation mode, read ee commands from simulator (set by keyboard input)
+            if hasattr(self.simulator, 'ee_commands') and self.simulator.ee_commands is not None:
+                self.ee_commands = self.simulator.ee_commands.clone()
+            if hasattr(self.simulator, 'gait_commands') and self.simulator.gait_commands is not None:
+                self.gait_commands = self.simulator.gait_commands.clone()
+                self.T = self.gait_commands
+        else:
+            # In training mode, write ee commands from environment to simulator
+            self.simulator.ee_commands = self.ee_commands
 
     def _reset_buffers_callback(self, env_ids, target_buf=None):
         super()._reset_buffers_callback(env_ids, target_buf)
@@ -127,6 +136,14 @@ class LeggedRobotLocomotionStanceGaitEETracking(LeggedRobotLocomotionStanceGait)
             
     def _pre_compute_observations_callback(self):
         super()._pre_compute_observations_callback()
+        # In evaluation mode, read commands from simulator (set by keyboard input)
+        # This needs to be done before computing observations so that commands are available
+        if self.is_evaluating:
+            if hasattr(self.simulator, 'ee_commands') and self.simulator.ee_commands is not None:
+                self.ee_commands = self.simulator.ee_commands.clone()
+            if hasattr(self.simulator, 'gait_commands') and self.simulator.gait_commands is not None:
+                self.gait_commands = self.simulator.gait_commands.clone()
+                self.T = self.gait_commands
         self.end_effector_vel[:] = self.simulator._rigid_body_vel[:, self.end_effector_index, :]
         self.end_effector_ang_vel[:] = self.simulator._rigid_body_ang_vel[:, self.end_effector_index, :]
         self.end_effector_pos = self.simulator._rigid_body_pos[:, self.end_effector_index]

@@ -95,7 +95,14 @@ class LeggedRobotLocomotion(LeggedRobotBase):
     
 
     def _setup_simulator_control(self):
-        self.simulator.commands = self.commands
+        if self.is_evaluating:
+            # In evaluation mode, read commands from simulator (set by keyboard input)
+            # This allows interactive control during evaluation
+            if hasattr(self.simulator, 'commands') and self.simulator.commands is not None:
+                self.commands = self.simulator.commands.clone()
+        else:
+            # In training mode, write commands from environment to simulator
+            self.simulator.commands = self.commands
 
     def _update_tasks_callback(self):
         """ Callback called before computing terminations, rewards, and observations
@@ -108,6 +115,11 @@ class LeggedRobotLocomotion(LeggedRobotBase):
         if not self.is_evaluating:
             env_ids = (self.episode_length_buf % int(self.config.locomotion_command_resampling_time / self.dt)==0).nonzero(as_tuple=False).flatten()
             self._resample_commands(env_ids)
+        else:
+            # In evaluation mode, read commands from simulator (set by keyboard input)
+            # This allows interactive control during evaluation
+            if hasattr(self.simulator, 'commands') and self.simulator.commands is not None:
+                self.commands = self.simulator.commands.clone()
         forward = quat_apply(self.base_quat, self.forward_vec)
         heading = torch.atan2(forward[:, 1], forward[:, 0])
         self.commands[:, 2] = torch.clip(

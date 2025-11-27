@@ -25,7 +25,14 @@ class LeggedRobotLocomotionStanceGait(LeggedRobotLocomotionStance):
     
     def _setup_simulator_control(self):
         super()._setup_simulator_control()
-        self.simulator.gait_commands = self.gait_commands
+        if self.is_evaluating:
+            # In evaluation mode, read gait commands from simulator (set by keyboard input)
+            if hasattr(self.simulator, 'gait_commands') and self.simulator.gait_commands is not None:
+                self.gait_commands = self.simulator.gait_commands.clone()
+                self.T = self.gait_commands
+        else:
+            # In training mode, write gait commands from environment to simulator
+            self.simulator.gait_commands = self.gait_commands
 
     def update_phase_time(self):
         # Update the phase time
