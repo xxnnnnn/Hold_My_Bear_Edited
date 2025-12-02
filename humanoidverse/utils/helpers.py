@@ -73,6 +73,18 @@ def parse_observation(cls: Any,
                       current_noise_curriculum_value: Any=1.0) -> None:
     """ Parse observations for the legged_robot_base class
     """
+    # Counter for printing observation values (print every 100 observation computation cycles)
+    if not hasattr(parse_observation, '_print_counter'):
+        parse_observation._print_counter = 0
+    
+    # Check if we should print (only check once per function call, at the beginning)
+    should_print = False
+    if 'ee_imu_acc' in key_list or 'ee_imu_gyro' in key_list:
+        parse_observation._print_counter += 1
+        should_print = (parse_observation._print_counter % 100 == 0)  # Print every 100 steps
+
+    # Store observation statistics for printing
+    obs_stats = {}
 
     for obs_key in key_list:
         if obs_key.endswith("_raw"):
@@ -83,7 +95,60 @@ def parse_observation(cls: Any,
 
         actor_obs = getattr(cls, f"_get_obs_{obs_key}")().clone()
         obs_scale = obs_scales[obs_key]
-        buf_dict[obs_key] = (actor_obs + (torch.rand_like(actor_obs)* 2. - 1.) * obs_noise) * obs_scale
+        
+        # Generate noise
+        noise = (torch.rand_like(actor_obs) * 2. - 1.) * obs_noise
+        noisy_obs = actor_obs + noise
+        buf_dict[obs_key] = noisy_obs * obs_scale
+        
+        # Store statistics for all observations
+        if should_print:
+            true_val_mean = actor_obs.mean().item()
+            true_val_std = actor_obs.std().item()
+            true_val_min = actor_obs.min().item()
+            true_val_max = actor_obs.max().item()
+            scaled_val_mean = buf_dict[obs_key].mean().item()
+            scaled_val_std = buf_dict[obs_key].std().item()
+            
+            obs_stats[obs_key] = {
+                'true_mean': true_val_mean,
+                'true_std': true_val_std,
+                'true_min': true_val_min,
+                'true_max': true_val_max,
+                'scaled_mean': scaled_val_mean,
+                'scaled_std': scaled_val_std,
+                'scale': obs_scale,
+                'noise_scale': obs_noise,
+            }
+        
+        # Print detailed IMU values for debugging (only for first environment)
+        if should_print and obs_key in ['ee_imu_acc', 'ee_imu_gyro']:
+            env_id = 0  # Print first environment only
+            true_val = actor_obs[env_id].cpu().numpy()
+            noise_val = noise[env_id].cpu().numpy()
+            noisy_val = noisy_obs[env_id].cpu().numpy()
+            scaled_val = buf_dict[obs_key][env_id].cpu().numpy()
+            
+            print(f"\n[IMU Debug] {obs_key} (env_id={env_id}, step={parse_observation._print_counter}):")
+            print(f"  真值 (true):        {true_val}")
+            print(f"  噪声 (noise):       {noise_val}")
+            print(f"  加噪后 (noisy):     {noisy_val}")
+            print(f"  最终值 (scaled):    {scaled_val} (scale={obs_scale})")
+            print(f"  噪声尺度 (noise_scale): {obs_noise:.4f}")
+    
+    # Print statistics for all observations
+    if should_print and len(obs_stats) > 0:
+        print(f"\n{'='*80}")
+        print(f"[Observation Statistics] Step={parse_observation._print_counter} (all envs, mean/std/min/max):")
+        print(f"{'='*80}")
+        print(f"{'Observation':<25} {'True Mean':<12} {'True Std':<12} {'True Range':<20} {'Scaled Mean':<12} {'Scale':<8} {'Noise':<8}")
+        print(f"{'-'*80}")
+        for obs_key in sorted(obs_stats.keys()):
+            stats = obs_stats[obs_key]
+            true_range = f"[{stats['true_min']:.3f}, {stats['true_max']:.3f}]"
+            print(f"{obs_key:<25} {stats['true_mean']:>11.3f} {stats['true_std']:>11.3f} {true_range:<20} "
+                  f"{stats['scaled_mean']:>11.3f} {stats['scale']:>7.2f} {stats['noise_scale']:>7.4f}")
+        print(f"{'='*80}\n")
 
 
 def export_policy_as_jit(actor_critic, path):

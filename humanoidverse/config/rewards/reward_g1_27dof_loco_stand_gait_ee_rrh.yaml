@@ -7,6 +7,8 @@ rewards:
   set_reward: Yitang
   set_reward_date: 20250426
   only_positive_rewards: False
+
+  # for training
   reward_scales:
       tracking_lin_vel_x: 1.5
       tracking_lin_vel_y: 1.0
@@ -181,6 +183,9 @@ rewards:
   reward_penalty_degree: 0.00001
   num_compute_average_epl: 10000
 
+
+
+# for penalty curriculum
   reward_penalty_reward_names: [
     "penalty_upper_body_torques",
     "penalty_upper_body_dof_acc",

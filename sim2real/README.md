@@ -1,215 +1,194 @@
-# FALCON Deployment Guide
+# Hold My Beer - Sim2Real Deployment
 
-This folder provides seamless sim2sim/sim2real deployment scripts for both Unitree G1 (H1, H1-2) and Booster T1. The key idea is to simulate the real robot's state publisher and command receiver in Mujoco:
+本目录提供 Hold My Beer 任务的 sim2sim/sim2real 部署脚本，支持 Unitree G1 机器人。
 
-<table>
-  <tr>
-    <td style="text-align: center;">
-      <img src="../assets/deploy.png" style="width: 99%;"/>
-    </td>
-  </tr>
-</table>
+## 目录
 
-## Table of Contents
+- [安装](#安装)
+- [配置](#配置)
+- [部署](#部署)
+- [键盘控制](#键盘控制)
+- [配置说明](#配置说明)
+- [训练与部署一致性检查](#训练与部署一致性检查)
+- [常见问题](#常见问题)
+- [文件结构](#文件结构)
 
-- [Pre-Configuration](#pre-configuration)
-- [Installation](#installation)
-- [Deployment](#deployment)
-  - [G1 29DoF Locomotion](#g1-29dof-locomotion)
-  - [G1 29DoF FALCON](#g1-29dof-falcon)
-  - [T1 29DoF FALCON](#t1-29dof-falcon)
-- [Sim2Real Tips](#sim2real-tips)
+## 安装
 
-## Pre-Configuration
-Here, we use `config/g1/g1_29dof.yaml`. Before testing sim2sim/sim2real, check the `ROBOT_TYPE`, `SDK_TYPE`, and `INTERFACE` in the `.yaml` file:
-```yaml
-ROBOT_TYPE: 'g1_29dof' # Robot name, "t1_29dof", "g1_29dof"...
+### 环境要求
+- Ubuntu 22.04 LTS
+- Python 3.10
+- CUDA (如果使用 GPU 训练)
 
-ROBOT_SCENE: "../humanoidverse/data/robots/g1/scene_29dof_freebase.xml" # Robot scene, for Sim2Sim
-
-ASSET_ROOT: "../humanoidverse/data/robots/g1" # Robot Asset Root
-
-DOMAIN_ID: 0 # Domain id
-# IP Interface 
-# For sim2sim, 'lo' is for linux and 'lo0' is for mac.
-# For sim2real, this needs to be specified according to your host ip, e.g., 'en0'
-INTERFACE: "lo"
-
-SDK_TYPE: "unitree" # SDK type, "unitree", "booster"
-MOTOR_TYPE: "serial" # Motor type, "serial" or "parallel"
-
-USE_JOYSTICK: 0 # Simulate Unitree WirelessController using a gamepad (0: disable, 1: enable)
-JOYSTICK_TYPE: "xbox" # support "xbox" and "switch" gamepad layout; Unitree WirelessController is "xbox" layout.
+### 创建 conda 环境
+```bash
+conda create -n hmbgym python=3.10
+conda activate hmbgym
 ```
 
-# Installation
-## Prebuild environment
-* OS  (Ubuntu 22.04 LTS)  
-* CPU  (aarch64 and x86_64)   
-* Compiler  (gcc version 11.4.0) 
-
-## Create a conda env
-```
-conda create -n fcreal python=3.10
-conda activate fcreal
-```
-## Install Pinocchio for Inverse Kinematics
-```
-conda install pinocchio=3.2.0 -c conda-forge
-```
-## Install unitree_sdk2_python for Unitree G1 deployment
-```
+### 安装依赖
+```bash
+# 安装 unitree_sdk2_python
 git clone https://github.com/unitreerobotics/unitree_sdk2_python.git
 cd unitree_sdk2_python
 pip install -e .
-```
-## Install booster_robotics_sdk for Booster T1 deployment
-Note that the official [booster_robotics_sdk](https://github.com/BoosterRobotics/booster_robotics_sdk) does not provide state publisher and command receiver, so I improve the repo a bit and add them in my [forked repo](https://github.com/hang0610/booster_robotics_sdk). Also booster sdk is NOT supported on Mac OS yet.
-```bash
-git clone https://github.com/hang0610/booster_robotics_sdk
-# Install python package for building python binding locally
-pip3 install pybind11
-pip3 install pybind11-stubgen
-# Build & Install
-mkdir build
-cd build
-cmake .. -DBUILD_PYTHON_BINDING=on
-make
-sudo make install
-```
-## Install others
-```bash
+cd ..
+
+# 安装其他依赖
 cd sim2real
 pip install -r requirements.txt
 ```
 
-# Deployment
+## 配置
+
+### 配置文件位置
+主要配置文件：`config/g1/g1_27dof_ee.yaml`
+
+### 关键配置项
+
+```yaml
+ROBOT_TYPE: 'g1_27dof'
+ROBOT_SCENE: "../humanoidverse/data/robots/g1/scene_g1_27dof_fakehand_freebase.xml"
+DOMAIN_ID: 0
+INTERFACE: "lo"  # Sim2Sim 用 "lo" (Linux) 或 "lo0" (Mac), Sim2Real 用实际网络接口如 "en0"
+SDK_TYPE: "unitree"
+USE_JOYSTICK: 0  # 0: 键盘控制, 1: 手柄控制
+RL_RATE: 100     # RL 策略控制频率 (Hz)，应与训练时的控制频率一致
+```
+
+### 重要配置检查
+
+1. **关节顺序 (`dof_names`)**: 必须与训练配置完全一致
+2. **PD 增益 (`JOINT_KP`, `JOINT_KD`)**: 应与训练配置一致
+3. **默认关节角度 (`DEFAULT_DOF_ANGLES`)**: 应与训练配置一致
+4. **控制频率 (`RL_RATE`)**: 应与训练时的控制频率一致（训练时 `control_decimation=2`, `sim_dt=0.005`，所以 `dt=0.01`，控制频率=100Hz）
+
+## 部署
+
+### Sim2Sim (模拟器测试)
+
+**步骤 1: 启动 MuJoCo 模拟器**
+```bash
+cd sim2real
+python sim_env/base_sim.py --config=config/g1/g1_27dof_ee.yaml
+```
+
+**步骤 2: 启动策略** (新开一个终端)
+```bash
+cd sim2real
+python rl_policy/hold_my_beer/s2s_eval.py \
+  --config=config/g1/g1_27dof_ee.yaml \
+  --model_path=models/hold_my_beer/baseline_8000.onnx
+```
+
+> [!NOTE]
+> 机器人会浮在空中，这是模拟被绳子吊起的状态。
+
+#### MuJoCo 窗口快捷键
+- `7/8`: 调整弹性带高度
+- `9`: 切换弹性带是否启用
+- `backspace`: 重置模拟
+
+### Sim2Real (真实机器人)
+
+**直接启动策略** (不需要 MuJoCo)
+```bash
+cd sim2real
+python rl_policy/hold_my_beer/s2s_eval.py \
+  --config=config/g1/g1_27dof_ee.yaml \
+  --model_path=models/hold_my_beer/baseline_8000.onnx
+```
+
 > [!IMPORTANT]
-> For sim2sim, you need to start Mujoco and then launch the policy, but for sim2real, you **only** need to launch the policy.
-> Make sure you read the keyboard and joystick control protocol in `sim2real/rl_policy/base_policy.py`.
-> All the deployment scripts are running under `sim2real`, so do `cd sim2real` first.
+> - **Sim2Sim**: 需要先启动 MuJoCo，再启动策略
+> - **Sim2Real**: 只需启动策略
+> - **键盘控制**: 确保在运行策略的终端中操作键盘（不是 MuJoCo 窗口）
+> - **安全**: 部署到真实机器人前，务必先在 Sim2Sim 中充分测试
 
-<details>
-<summary>TEST with G1_29DoF Locomotion</summary>
+## 键盘控制
 
-## G1 29DoF Locomotion
-  
-Here, we fix the upper body target joint angles to the default, and the policy only outputs the lower body action.
-### 1. Start Mujoco Env (ONLY for Sim2Sim)
+### 基础控制
+| 按键 | 功能 | 说明 |
+|------|------|------|
+| `]` | 启动策略 | 开始使用 RL 策略控制机器人 |
+| `o` | 停止策略 | 停止策略，动作设为 0 |
+| `i` | 初始化状态 | 机器人回到默认姿态 |
+| `=` | 切换模式 | 在站立模式（0）和行走模式（1）之间切换 |
 
-```bash
-python sim_env/base_sim.py \
---config=config/g1/g1_27dof.yaml
+### 运动控制
+| 按键 | 功能 | 说明 |
+|------|------|------|
+| `W/S` | 前进/后退 | 增加/减少前进速度（仅在行走模式） |
+| `A/D` | 左移/右移 | 增加左侧移/右侧移速度（仅在行走模式） |
+| `Q/E` | 左转/右转 | 逆时针/顺时针旋转 |
+| `Z` | 速度归零 | 将所有速度命令设为 0 |
+
+### 末端执行器（EE）控制
+| 按键 | 功能 | 说明 |
+|------|------|------|
+| `X/C` | X 轴控制 | X 增加（前进）/ X 减少（后退） |
+| `V/B` | Y 轴控制 | Y 增加（左侧）/ Y 减少（右侧） |
+| `N/M` | Z 轴控制 | Z 增加（向上）/ Z 减少（向下） |
+
+> [!NOTE]
+> EE 控制步长为 0.03m，每次按键调整一次。
+
+### 步态控制
+| 按键 | 功能 | 说明 |
+|------|------|------|
+| `1/2` | 步态周期 | 增加/减少步态周期（Gait Period） |
+
+### PD 增益控制
+| 按键 | 功能 | 说明 |
+|------|------|------|
+| `4/7` | KP 调整（粗调） | 减少/增加 KP 缩放（0.1 步长） |
+| `5/6` | KP 调整（细调） | 减少/增加 KP 缩放（0.01 步长） |
+| `0` | KP 重置 | 重置 KP 缩放为 1.0 |
+
+## 配置说明
+
+### 观察值结构
+
+策略启动时会自动打印观察值结构，包括：
+- 每个观察组的维度
+- 历史长度
+- 总堆叠维度
+- 命令值（速度、步态周期、EE 位置等）
+
+### 命令初始化
+
+默认命令值：
+- `lin_vel_command`: [0.0, 0.0] (前进速度, 侧移速度)
+- `ang_vel_command`: 0.0 (旋转速度)
+- `stand_command`: 1.0 (行走模式)
+- `gait_command`: 0.65 (步态周期，秒)
+- `ee_command`: active=1.0, pos=[0.3, -0.15, 0.05], tolerance=0.15
+
+
+
+
+## 文件结构
+
 ```
-
-### 2. Launch the Policy
-
-```bash
-python rl_policy/dec_loco/dec_loco.py \
---config=config/g1/g1_29dof.yaml \
---model_path=models/dec_loco/g1_29dof.onnx 
+sim2real/
+├── config/
+│   └── g1/
+│       └── g1_27dof_ee.yaml          # 主配置文件
+├── models/
+│   └── hold_my_beer/
+│       └── baseline_8000.onnx        # 训练好的 ONNX 模型
+├── rl_policy/
+│   ├── base_policy.py                # 基础策略类
+│   ├── dec_loco/
+│   │   └── dec_loco.py               # 解耦运动策略
+│   └── hold_my_beer/
+│       └── s2s_eval.py               # Hold My Beer 策略脚本
+├── sim_env/
+│   └── base_sim.py                   # MuJoCo 模拟器
+├── utils/
+│   ├── comm/                         # 通信模块（命令发送、状态处理）
+│   ├── sdk2py_bridge/                # SDK 桥接
+│   └── math.py                       # 数学工具
+├── requirements.txt                  # Python 依赖
+└── README.md                         # 本文档
 ```
-
-https://github.com/user-attachments/assets/dc2d8821-6361-49a8-93cd-fb443bd63c39
-
-</details>
-
-Here are some **keyboard shortcuts**:
-
-<details>
-<summary>Keyboard Shortcuts in Mujoco</summary>
-
-- `7`: raise elastic band height
-- `8`: lower elastic band height
-- `9`: toggle elastic band
-- `backspace`: reset simulation
-
-</details>
-
-<details>
-<summary>Keyboard Shortcuts in Policy Terminal</summary>
-
-- `]`: start using policy actions
-- `o`: stop using policy action and set actions to zero
-- `=`: switch between standing and stepping
-- `w`: increase linear velocity in `x` direction
-- `s`: decrease linear velocity in `x` direction
-- `a`: increase linear velocity in `y` direction
-- `d`: decrease linear velocity in `y` direction
-- `q`: decrease angular velocity in `z` direction
-- `e`: increase angular velocity in `z` direction
-- `z`: set velocity to zero
-- `1`: increase base height (if the policy allows)
-- `2`: decrease base height (if the policy allows)
-- `5`: decrease kp scale by 0.01
-- `6`: increase kp scale by 0.01
-- `4`: decrease kp scale by 0.1
-- `7`: increase kp scale by 0.1
-- `0`: reset kp scale to 1.0
-  
-</details>
-
-## G1 29DoF FALCON
-
-### 1. Start Mujoco Env (ONLY for Sim2Sim)
-
-```bash
-python sim_env/loco_manip.py \
---config=config/g1/g1_29dof_falcon.yaml
-```
-
-### 2. Launch the Policy
-
-```bash
-python rl_policy/loco_manip/loco_manip.py \
---config=config/g1/g1_29dof_falcon.yaml \
---model_path=models/falcon/g1_29dof.onnx 
-```
-
-https://github.com/user-attachments/assets/273b52c1-0248-40e5-b218-e078e74b322d
-
-## T1 29DoF FALCON
-### 1. Start Mujoco Env (ONLY for Sim2Sim)
-```bash
-python sim_env/loco_manip.py \
---config=config/t1/t1_29dof_falcon.yaml 
-```
-### 2. Luanch the Policy
-```bash
-python rl_policy/loco_manip/loco_manip.py \
---config=config/t1/t1_29dof_falcon.yaml \
---model_path=models/falcon/t1_29dof.onnx
-```
-
-https://github.com/user-attachments/assets/e35ff90e-428b-41ea-8cac-64d9906c78e8
-
-## Sim2Real Tips
-> [!CAUTION]
-> **FALCON is a strong policy trained for robust locomotion and manipulation.** Before deploying to real robots, ensure:
-
-### Network Configuration
-- Set correct `INTERFACE` in config file (e.g., 'en0', 'eth0')
-- Verify network connectivity between computer and robot
-- Check firewall settings if using specific ports
-
-### Testing Protocol
-1. Always do sim2sim before real-robot deployment
-2. Start with small kp, kd gains
-3. Ensure robot feet touch the ground before running falcon policies
-
-### Emergency Control
-- **Keyboard**: Press 'o' to stop policy actions
-- **Joystick**: Press 'B+Y' to stop policy actions
-
-### Real-time Inference
-- `unitree_sdk2_python` can not guarantee real-time inference on Jetson Orin inside of Unitree G1 as `unitree_sdk2_python` is fully written in python, while `booster_robotics_sdk` works fine as its backend is written in cpp with a pybinding wrapper.
-- It's recommended to use `unitree_sdk2` for real-time onboard inference on Unitree G1. Please check this [repo](https://github.com/hang0610/unitree_sdk2/tree/main) for the pybinding wrapper I wrote for `unitree_sdk2`.
-
-I recommend you to use `unitree_sdk2` for real-time inference onboard. I have written a pybinding wrapper for it. Please check this [repo](https://github.com/hang0610/unitree_sdk2) (currently no README for this pybinding wrapper, but will update soon).
-
-# Acknowledgement
-We thank the following open-sourced repos that we build upon:
-- [unitree_mujoco](https://github.com/unitreerobotics/unitree_mujoco)
-- [xr_teleoperate](https://github.com/unitreerobotics/xr_teleoperate)
-- [unitree_sdk2_python](https://github.com/unitreerobotics/unitree_sdk2_python)
-- [booster_robotics_python](https://github.com/BoosterRobotics/booster_robotics_sdk)

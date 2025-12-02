@@ -142,7 +142,7 @@ class BaseSimulator:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Robot")
-    parser.add_argument("--config", type=str, default="config/g1/g1_27dof.yaml", help="config file")
+    parser.add_argument("--config", type=str, default="config/g1/g1_27dof_ee.yaml", help="config file")
     args = parser.parse_args()
 
     with open(args.config) as file:

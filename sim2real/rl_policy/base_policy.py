@@ -262,6 +262,7 @@ class BasePolicy:
         # Extract base and joint data
         current_obs_buffer_dict["base_quat"] = robot_state_data[:, 3:7]
         current_obs_buffer_dict["base_ang_vel"] = robot_state_data[:, 7 + self.num_dofs + 3 : 7 + self.num_dofs + 6]
+        # dof_pos is a diff
         current_obs_buffer_dict["dof_pos"] = robot_state_data[:, 7 : 7 + self.num_dofs] - self.default_dof_angles
         current_obs_buffer_dict["dof_vel"] = robot_state_data[:, 7 + self.num_dofs + 6 : 7 + self.num_dofs + 6 + self.num_dofs]
         # Calculate projected gravity

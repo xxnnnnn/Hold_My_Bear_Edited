@@ -195,10 +195,13 @@ class LeggedRobotLocomotionStanceGaitEETracking(LeggedRobotLocomotionStanceGait)
 
     ########################### FEET REWARDS ###########################
     def _reward_tracking_end_effector_pos(self):
-        ee_local_pos = self.end_effector_pos - self.simulator._rigid_body_pos[:, self.pelvis_index, :3].unsqueeze(1)
+        #ee_local_pos = ee's global position - pelvis's global position
+        ee_local_pos = self.end_effector_pos - self.simulator._rigid_body_pos[:, self.pelvis_index, :3].unsqueeze(1) 
+        # rotate ee_local_pos to the base frame
         ee_relative_pos = quat_rotate_inverse(
                             self.base_quat.unsqueeze(1).expand(self.num_envs, self.num_end_effectors, 4).reshape(-1, 4), 
                             ee_local_pos.reshape(-1, 3)).reshape(self.num_envs, self.num_end_effectors, 3)
+        
         ee_target_pos = self.ee_commands.reshape(self.num_envs, self.num_end_effectors, 5)[:, :, 1:4].clone()
 
         ee_target_pos[:, :, 2] += - self.simulator._rigid_body_pos[:, self.pelvis_index, 2].unsqueeze(1) + self.config.rewards.desired_base_height
@@ -289,3 +292,21 @@ class LeggedRobotLocomotionStanceGaitEETracking(LeggedRobotLocomotionStanceGait)
     
     def _get_obs_command_ee(self):
         return self.ee_commands
+    
+    def _draw_debug_vis(self):
+        """Draw visualization for end effector origin position."""
+        super()._draw_debug_vis()  # Call parent to draw other debug visualizations
+        
+        # Draw sphere at end effector origin for each environment
+        if hasattr(self, 'end_effector_pos') and self.end_effector_pos is not None:
+            # end_effector_pos shape: (num_envs, num_end_effectors, 3)
+            for env_id in range(min(self.num_envs, 10)):  # Limit to first 10 envs for performance
+                for ee_idx in range(self.num_end_effectors):
+                    ee_pos = self.end_effector_pos[env_id, ee_idx].cpu().numpy()
+                    # Draw a small red sphere at the end effector origin
+                    self.simulator.draw_sphere(
+                        pos=ee_pos,
+                        radius=0.01,  # 1cm radius
+                        color=(1.0, 0.0, 0.0),  # Red color
+                        env_id=env_id
+                    )

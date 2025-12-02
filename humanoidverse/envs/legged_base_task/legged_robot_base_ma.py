@@ -84,6 +84,7 @@ class LeggedRobotBase(BaseTask):
         self.num_compute_average_epl = self.config.rewards.num_compute_average_epl
 
         self.need_to_refresh_envs = torch.ones(self.num_envs, dtype=torch.bool, device=self.device, requires_grad=False)
+        self.obs_structure_printed = False
 
     def _domain_rand_config(self):
         if self.config.domain_rand.push_robots:
@@ -535,9 +536,31 @@ class LeggedRobotBase(BaseTask):
         for obs_key, obs_config in self.config.obs.obs_dict.items():
             obs_keys = sorted(obs_config)
             current_obs_buf = torch.cat([self.obs_buf_dict_raw[obs_key][key] for key in obs_keys], dim=-1)
+
+            if not self.obs_structure_printed:
+                print(f"\n{'='*50}")
+                print(f"Observation Structure for Group '{obs_key}':")
+                print(f"Single Frame Dimension: {current_obs_buf.shape[-1]}")
+                
+                start_idx = 0
+                for key in obs_keys:
+                    data = self.obs_buf_dict_raw[obs_key][key]
+                    dim = data.shape[-1]
+                    print(f"  [{start_idx:4d} - {start_idx + dim - 1:4d}] {key:<30} (Dim: {dim})")
+                    start_idx += dim
+                
+                try:
+                    h_len = self.history_length[obs_key]
+                    print(f"History Length: {h_len}")
+                    print(f"Total Stacked Dimension: {current_obs_buf.shape[-1] * h_len}")
+                except:
+                    pass
+                print(f"{'='*50}\n")
+
             self.obs_buf_dict[obs_key] = self.obs_buf_dict[obs_key].to(self.device)
             self.obs_buf_dict[obs_key] = torch.cat((self.obs_buf_dict[obs_key][:, self.dim_obs[obs_key]:(self.dim_obs[obs_key]*self.history_length[obs_key])], 
                                                     current_obs_buf), dim=-1)
+        self.obs_structure_printed = True
 
     def _compute_torques(self, actions):
         """ Compute torques from actions.

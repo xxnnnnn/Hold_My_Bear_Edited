@@ -1,41 +1,43 @@
-ROBOT_TYPE: 'g1_27dof' # Robot name, "t1_23dof", "g1_29dof", "go2", "b2", "b2w", "h1", "go2w"
-ROBOT_SCENE: "../humanoidverse/data/robots/g1/scene_g1_27dof_fakehand_freebase.xml" # Robot scene, for Sim2Sim
-ASSET_ROOT: "../humanoidverse/data/robots/g1" # Robot Asset Root
-ASSET_FILE: "../humanoidverse/data/robots/g1/g1_27dof_fakehand.urdf" # Robot Asset File"
+ROBOT_TYPE: 'g1_27dof' 
+ROBOT_SCENE: "../humanoidverse/data/robots/g1/scene_g1_27dof_fakehand_freebase.xml"
+ASSET_ROOT: "../humanoidverse/data/robots/g1"
+ASSET_FILE: "../humanoidverse/data/robots/g1/g1_27dof_fakehand.urdf"
+
 
 # Model path for the trained policy
-# model_path: "models/loco/g1_27dof.onnx"
+model_path: "models/loco/g1_27dof.onnx"
 
-SDK_TYPE: "unitree" # SDK type, "unitree", "booster"
-MOTOR_TYPE: "serial" # Motor type, "serial" or "parallel"
+SDK_TYPE: "unitree"
+MOTOR_TYPE: "serial"
 
 ## SIM
-DOMAIN_ID: 0 # Domain id
-INTERFACE: "lo" # in simulation, lo0 for mac, lo for linux
-
+DOMAIN_ID: 0
+INTERFACE: "lo" 
 FREE_BASE: True
+PRINT_SCENE_INFORMATION: True
+ENABLE_ELASTIC_BAND: True
 
-PRINT_SCENE_INFORMATION: True # Print link, joint and sensors information of robot
-ENABLE_ELASTIC_BAND: True # Virtual spring band, used for lifting h1
-
-SIMULATE_DT: 0.005  # Need to be larger than the runtime of viewer.sync()
-VIEWER_DT: 0.02  # Viewer update time
+SIMULATE_DT: 0.005
+VIEWER_DT: 0.02
 USE_SENSOR: False
 
-USE_JOYSTICK: 0 # Simulate Unitree WirelessController using a gamepad (0: disable, 1: enable)
-JOYSTICK_TYPE: "xbox" # support "xbox" and "switch" gamepad layout
-JOYSTICK_DEVICE: 0 # Joystick number
+USE_JOYSTICK: 0
+JOYSTICK_TYPE: "xbox"
+JOYSTICK_DEVICE: 0
 
 VISUALIZE_PIN: False
 VISUALIZE_FORCES: False
 
-residual_upper_body_action: False # Whether to use residual upper body action for balancing
-use_upper_body_controller: False # Whether to use upper body controller
+residual_upper_body_action: False
+use_upper_body_controller: False
 
-GAIT_PERIOD: 0.9 # Gait period in seconds
+GAIT_PERIOD: 0.9
+DESIRED_BASE_HEIGHT: 0.75
 
-DESIRED_BASE_HEIGHT: 0.75 # Desired base height
+num_end_effectors: 1
+end_effector_name: ["right_rubber_hand"]
 
+# Joint/Motor mapping (Same as g1_27dof.yaml)
 MOTOR2JOINT: [0, 1, 2, 3, 4, 5,
               6, 7, 8, 9, 10, 11,
               12, 
@@ -47,7 +49,6 @@ JOINT2MOTOR: [0, 1, 2, 3, 4, 5,
               12, 
               13, 14, 15, 16, 17, 18, 19, 
               20, 21, 22, 23, 24, 25, 26]
-            
 
 UNITREE_LEGGED_CONST:
   HIGHLEVEL: 0xEE
@@ -58,41 +59,44 @@ UNITREE_LEGGED_CONST:
   MODE_MACHINE: 5
   MODE_PR:  0
 
+# PD Gains (Must match training config: g1_27dof_fakehand_ee_rrh.yaml)
+# Joint order: left_leg(6), right_leg(6), waist(1), left_arm(7), right_arm(7) = 27 total
+# Training config: waist_yaw stiffness=200 (not 300!)
 JOINT_KP: [
-    100, 100, 100, 200, 20, 20,
-    100, 100, 100, 200, 20, 20,
-    300, 
-    90, 60, 20, 60, 4, 4, 4,
-    90, 60, 20, 60, 4, 4, 4
+    100, 100, 100, 200, 20, 20,  # left_leg: hip_yaw, hip_roll, hip_pitch, knee, ankle_pitch, ankle_roll
+    100, 100, 100, 200, 20, 20,  # right_leg: hip_yaw, hip_roll, hip_pitch, knee, ankle_pitch, ankle_roll
+    200,                          # waist_yaw (FIXED: was 300, should be 200 to match training)
+    90, 60, 20, 60, 4, 4, 4,     # left_arm: shoulder_pitch, shoulder_roll, shoulder_yaw, elbow, wrist_roll, wrist_pitch, wrist_yaw
+    90, 60, 20, 60, 4, 4, 4      # right_arm: shoulder_pitch, shoulder_roll, shoulder_yaw, elbow, wrist_roll, wrist_pitch, wrist_yaw
 ]
 
 JOINT_KD: [
-   2.5, 2.5, 2.5, 5, 0.2, 0.1,
-   2.5, 2.5, 2.5, 5, 0.2, 0.1,
-   5.0,
-   2.0, 1.0, 0.4, 1.0, 0.2, 0.2, 0.2,
-    2.0, 1.0, 0.4, 1.0, 0.2, 0.2, 0.2
+   2.5, 2.5, 2.5, 5, 0.2, 0.1,   # left_leg
+   2.5, 2.5, 2.5, 5, 0.2, 0.1,   # right_leg
+   5.0,                           # waist_yaw
+   2.0, 1.0, 0.4, 1.0, 0.2, 0.2, 0.2,  # left_arm
+   2.0, 1.0, 0.4, 1.0, 0.2, 0.2, 0.2   # right_arm
 ]
 
 MOTOR_KP: [
-    100, 100, 100, 200, 20, 20,
-    100, 100, 100, 200, 20, 20,
-    300,
-    90, 60, 20, 60, 4, 4, 4,
-    90, 60, 20, 60, 4, 4, 4
+    100, 100, 100, 200, 20, 20,  # left_leg
+    100, 100, 100, 200, 20, 20,  # right_leg
+    200,                          # waist_yaw (FIXED: was 300, should be 200 to match training)
+    90, 60, 20, 60, 4, 4, 4,     # left_arm
+    90, 60, 20, 60, 4, 4, 4      # right_arm
 ]
 
 MOTOR_KD: [
-   2.5, 2.5, 2.5, 5, 0.2, 0.1,
-   2.5, 2.5, 2.5, 5, 0.2, 0.1,
-   5.0,
-   2.0, 1.0, 0.4, 1.0, 0.2, 0.2, 0.2,
-    2.0, 1.0, 0.4, 1.0, 0.2, 0.2, 0.2
+   2.5, 2.5, 2.5, 5, 0.2, 0.1,   # left_leg
+   2.5, 2.5, 2.5, 5, 0.2, 0.1,   # right_leg
+   5.0,                           # waist_yaw
+   2.0, 1.0, 0.4, 1.0, 0.2, 0.2, 0.2,  # left_arm
+   2.0, 1.0, 0.4, 1.0, 0.2, 0.2, 0.2   # right_arm
 ]
 
-dof_names: ['left_hip_yaw_joint', 'left_hip_roll_joint', 'left_hip_pitch_joint', 
+dof_names: ['left_hip_pitch_joint', 'left_hip_roll_joint', 'left_hip_yaw_joint', 
             'left_knee_joint', 'left_ankle_pitch_joint', 'left_ankle_roll_joint',
-            'right_hip_yaw_joint', 'right_hip_roll_joint', 'right_hip_pitch_joint',
+            'right_hip_pitch_joint', 'right_hip_roll_joint', 'right_hip_yaw_joint',
             'right_knee_joint', 'right_ankle_pitch_joint', 'right_ankle_roll_joint',
             'waist_yaw_joint',
             'left_shoulder_pitch_joint', 'left_shoulder_roll_joint', 
@@ -103,29 +107,33 @@ dof_names: ['left_hip_yaw_joint', 'left_hip_roll_joint', 'left_hip_pitch_joint',
             'right_shoulder_yaw_joint', 'right_elbow_joint',
             'right_wrist_roll_joint', 'right_wrist_pitch_joint',
             'right_wrist_yaw_joint']
+
 dof_names_upper_body: ['left_shoulder_pitch_joint', 'left_shoulder_roll_joint', 
                       'left_shoulder_yaw_joint', 'left_elbow_joint',
                       'left_wrist_roll_joint', 'left_wrist_pitch_joint', 'left_wrist_yaw_joint',
                       'right_shoulder_pitch_joint', 'right_shoulder_roll_joint',
                       'right_shoulder_yaw_joint', 'right_elbow_joint',
                       'right_wrist_roll_joint', 'right_wrist_pitch_joint', 'right_wrist_yaw_joint']
-dof_names_lower_body: ['left_hip_yaw_joint', 'left_hip_roll_joint', 'left_hip_pitch_joint',
+
+dof_names_lower_body: ['left_hip_pitch_joint', 'left_hip_roll_joint', 'left_hip_yaw_joint',
                       'left_knee_joint', 'left_ankle_pitch_joint', 'left_ankle_roll_joint',
-                      'right_hip_yaw_joint', 'right_hip_roll_joint', 'right_hip_pitch_joint',
+                      'right_hip_pitch_joint', 'right_hip_roll_joint', 'right_hip_yaw_joint',
                       'right_knee_joint', 'right_ankle_pitch_joint', 'right_ankle_roll_joint',
                       'waist_yaw_joint']
+
 left_hand_link_name: "left_rubber_hand"
 right_hand_link_name: "right_rubber_hand"
+
 WeakMotorJointIndex:
-  left_hip_yaw_joint: 0
+  left_hip_pitch_joint: 0
   left_hip_roll_joint: 1
-  left_hip_pitch_joint: 2
+  left_hip_yaw_joint: 2
   left_knee_joint: 3
   left_ankle_pitch_joint: 4
   left_ankle_roll_joint: 5
-  right_hip_yaw_joint: 6
+  right_hip_pitch_joint: 6
   right_hip_roll_joint: 7
-  right_hip_pitch_joint: 8
+  right_hip_yaw_joint: 8
   right_knee_joint: 9
   right_ankle_pitch_joint: 10
   right_ankle_roll_joint: 11
@@ -150,19 +158,19 @@ NUM_JOINTS: 27
 NUM_UPPER_BODY_JOINTS: 14
 
 DEFAULT_DOF_ANGLES: [
-    -0.1,  # left_hip_pitch_joint 
-    0.0,  # left_hip_roll_joint
-    0.0,  # left_hip_yaw_joint
-    0.3,  # left_knee_joint
-    -0.2, # left_ankle_pitch_joint
-    0.0,  # left_ankle_roll_joint
-    -0.1, # right_hip_pitch_joint
-    0.0,  # right_hip_roll_joint
-    0.0,  # right_hip_yaw_joint
-    0.3,  # right_knee_joint
-    -0.2, # right_ankle_pitch_joint
-    0.0,  # right_ankle_roll_joint
-    0.0,  # waist_yaw_joint
+    -0.1,  # left_hip_pitch_joint (index 0)
+    0.0,  # left_hip_roll_joint (index 1)
+    0.0,  # left_hip_yaw_joint (index 2)
+    0.3,  # left_knee_joint (index 3)
+    -0.2, # left_ankle_pitch_joint (index 4)
+    0.0,  # left_ankle_roll_joint (index 5)
+    -0.1, # right_hip_pitch_joint (index 6)
+    0.0,  # right_hip_roll_joint (index 7)
+    0.0,  # right_hip_yaw_joint (index 8)
+    0.3,  # right_knee_joint (index 9)
+    -0.2, # right_ankle_pitch_joint (index 10)
+    0.0,  # right_ankle_roll_joint (index 11)
+    0.0,  # waist_yaw_joint (index 12)
     0.0,  # left_shoulder_pitch_joint
     0.0,  # left_shoulder_roll_joint
     0.0,  # left_shoulder_yaw_joint
@@ -180,35 +188,14 @@ DEFAULT_DOF_ANGLES: [
 ]
 
 DEFAULT_MOTOR_ANGLES: [
-    -0.1,  # left_hip_pitch_joint 
-    0.0,  # left_hip_roll_joint
-    0.0,  # left_hip_yaw_joint
-    0.3,  # left_knee_joint
-    -0.2, # left_ankle_pitch_joint
-    0.0,  # left_ankle_roll_joint
-    -0.1, # right_hip_pitch_joint
-    0.0,  # right_hip_roll_joint
-    0.0,  # right_hip_yaw_joint
-    0.3,  # right_knee_joint
-    -0.2, # right_ankle_pitch_joint
-    0.0,  # right_ankle_roll_joint
-    0.0,  # waist_yaw_joint
-    0.0,  # left_shoulder_pitch_joint
-    0.0,  # left_shoulder_roll_joint
-    0.0,  # left_shoulder_yaw_joint
-    0.0,  # left_elbow_joint
-    0.0,  # left_wrist_roll_joint
-    0.0,  # left_wrist_pitch_joint
-    0.0,  # left_wrist_yaw_joint
-    0.0,  # right_shoulder_pitch_joint
-    0.0,  # right_shoulder_roll_joint
-    0.0,  # right_shoulder_yaw_joint
-    0.0,  # right_elbow_joint
-    0.0,  # right_wrist_roll_joint
-    0.0,  # right_wrist_pitch_joint
-    0.0   # right_wrist_yaw_joint
+    -0.1, 0.0, 0.0, 0.3, -0.2, 0.0,  # left leg: pitch, roll, yaw, knee, ankle_pitch, ankle_roll
+    -0.1, 0.0, 0.0, 0.3, -0.2, 0.0,  # right leg: pitch, roll, yaw, knee, ankle_pitch, ankle_roll
+    0.0,  # waist_yaw
+    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # left arm: shoulder_pitch, roll, yaw, elbow, wrist_roll, pitch, yaw
+    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0  # right arm: shoulder_pitch, roll, yaw, elbow, wrist_roll, pitch, yaw
 ]
 
+# Motor limits (Same as g1_27dof.yaml)
 motor_pos_lower_limit_list: [-2.5307, -0.5236, -2.7576, -0.087267, -0.87267, -0.2618, 
                              -2.5307, -2.9671, -2.7576, -0.087267, -0.87267, -0.2618, 
                              -2.618,
@@ -237,6 +224,8 @@ motor_effort_limit_list: [88.0, 88.0, 88.0, 139.0, 50.0, 50.0,
                         25.0, 5.0, 5.0,
                         25.0, 25.0, 25.0, 25.0, 
                         25.0, 5.0, 5.0]
+
+# --- New Observation Config for EE Tracking Task ---
 obs_dict: {
   actor_obs: [
     base_ang_vel,
@@ -244,33 +233,36 @@ obs_dict: {
     command_lin_vel,
     command_ang_vel,
     command_stand,
-    command_waist_dofs,
-    ref_upper_dof_pos,
+    command_ee,
     dof_pos,
     dof_vel,
     actions,
+    command_gait,
     sin_phase,
     cos_phase,
   ],
 }
+
 history_length_dict: {
-  actor_obs: 1,
+  actor_obs: 5,
 }
+
 obs_dims: {
-            base_lin_vel: 3,
-            base_ang_vel: 3,
-            projected_gravity: 3,
-            command_lin_vel: 2,
-            command_ang_vel: 1,
-            command_stand: 1,
-            command_waist_dofs: 1,
-            ref_upper_dof_pos: 14, # upper body actions
-            dof_pos: 27,
-            dof_vel: 27,
-            actions: 13, # lower body actions
-            sin_phase: 1,
-            cos_phase: 1,
-          }
+    base_lin_vel: 3,
+    base_ang_vel: 3,
+    projected_gravity: 3,
+    command_lin_vel: 2,
+    command_ang_vel: 1,
+    command_stand: 1,
+    command_ee: 5,
+    dof_pos: 27,
+    dof_vel: 27,
+    actions: 27,
+    command_gait: 1,
+    sin_phase: 1,
+    cos_phase: 1,
+}
+
 obs_scales: {
     base_lin_vel: 2.0,
     base_ang_vel: 0.25,
@@ -278,12 +270,13 @@ obs_scales: {
     command_lin_vel: 1.0,
     command_ang_vel: 1.0,
     command_stand: 1.0,
-    command_waist_dofs: 1.0,
-    ref_upper_dof_pos: 1.0,
+    command_ee: 1.0,
     dof_pos: 1.0,
     dof_vel: 0.05,
-    history: 1.0,
     actions: 1.0,
+    command_gait: 1.0,
     sin_phase: 1.0,
     cos_phase: 1.0,
-  }
+}
+
+

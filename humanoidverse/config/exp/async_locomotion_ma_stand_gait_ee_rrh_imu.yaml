@@ -1,0 +1,15 @@
+# @package _global_
+
+defaults:
+  - /algo: ppo_ma_async
+  - /env: locomotion_ma_stand_gait_ee_rrh_imu
+  - /simulator: isaacgym
+  - /domain_rand: domain_rand_unitree_rl_gym_g1 
+  - /rewards: reward_g1_27dof_loco_stand_gait_ee_rrh
+  - /obs: g1_27dof_obs_history_loco_stand_gait_ee_imu
+  - /robot: g1/g1_27dof_fakehand_ee_rrh
+  - /terrain: terrain_locomotion_plane 
+
+num_envs: 1
+project_name: holdmybeer
+experiment_name: imu
