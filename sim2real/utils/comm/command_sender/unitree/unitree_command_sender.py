@@ -57,12 +57,8 @@ class UnitreeCommandSender(BasicCommandSender):
             self.low_cmd.motor_cmd[i].kd = 0
             self.low_cmd.motor_cmd[i].tau = 0
             
-            # Set mode for g1/h1-2
-            if (
-                robot_type == "g1_29dof"
-                or robot_type == "h1-2_21dof"
-                or robot_type == "h1-2_27dof"
-            ):
+            # Set mode for g1/h1-2 (needs mode_machine and mode_pr for HG robots)
+            if "g1" in robot_type or "h1-2" in robot_type:
                 self.low_cmd.mode_machine = self.config["UNITREE_LEGGED_CONST"]["MODE_MACHINE"]
                 self.low_cmd.mode_pr = self.config["UNITREE_LEGGED_CONST"]["MODE_PR"]
 

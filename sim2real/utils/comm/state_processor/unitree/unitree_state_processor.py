@@ -1,3 +1,5 @@
+import numpy as np
+
 from ..base import BasicStateProcessor
 
 
@@ -23,6 +25,14 @@ class UnitreeStateProcessor(BasicStateProcessor):
             self.robot_lowstate_subscriber.Init(self.LowStateHandler_go, 1)
         else:
             raise NotImplementedError(f"Robot type {robot_type} is not supported")
+
+        # Initialize EE IMU subscriber (for end-effector IMU data via rt/ee_imu channel)
+        from unitree_sdk2py.idl.unitree_hg.msg.dds_ import IMUState_
+        
+        self.ee_imu_acc = np.zeros(3)
+        self.ee_imu_gyro = np.zeros(3)
+        self.ee_imu_subscriber = ChannelSubscriber("rt/ee_imu", IMUState_)
+        self.ee_imu_subscriber.Init(self.EEIMUHandler, 1)
 
     def prepare_low_state(self, msg):
         """Prepare Unitree low-level state data from message."""
@@ -61,4 +71,10 @@ class UnitreeStateProcessor(BasicStateProcessor):
 
     def LowStateHandler_hg(self, msg):
         """Handle Unitree HG low-level state messages."""
-        self.robot_state_data = self.prepare_low_state(msg) 
+        self.robot_state_data = self.prepare_low_state(msg)
+
+    def EEIMUHandler(self, msg):
+        """Handle EE IMU messages from rt/ee_imu channel."""
+        if msg:
+            self.ee_imu_acc = np.array(msg.accelerometer)
+            self.ee_imu_gyro = np.array(msg.gyroscope)

@@ -1,5 +1,5 @@
 ROBOT_TYPE: 'g1_27dof' 
-ROBOT_SCENE: "../humanoidverse/data/robots/g1/scene_g1_27dof_fakehand_freebase.xml"
+ROBOT_SCENE: "../humanoidverse/data/robots/g1/scene_g1_27dof_fakehand_freebase_imu.xml"
 ASSET_ROOT: "../humanoidverse/data/robots/g1"
 ASSET_FILE: "../humanoidverse/data/robots/g1/g1_27dof_fakehand.urdf"
 
@@ -236,6 +236,8 @@ obs_dict: {
     command_ee,
     dof_pos,
     dof_vel,
+    ee_imu_acc,
+    ee_imu_gyro,
     actions,
     command_gait,
     sin_phase,
@@ -257,6 +259,8 @@ obs_dims: {
     command_ee: 5,
     dof_pos: 27,
     dof_vel: 27,
+    ee_imu_acc: 3,
+    ee_imu_gyro: 3,
     actions: 27,
     command_gait: 1,
     sin_phase: 1,
@@ -273,6 +277,8 @@ obs_scales: {
     command_ee: 1.0,
     dof_pos: 1.0,
     dof_vel: 0.05,
+    ee_imu_acc: 0.5,
+    ee_imu_gyro: 1.0,
     actions: 1.0,
     command_gait: 1.0,
     sin_phase: 1.0,

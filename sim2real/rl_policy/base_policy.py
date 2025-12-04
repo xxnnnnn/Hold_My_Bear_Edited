@@ -42,6 +42,8 @@ class BasePolicy:
         self._init_command_components()
         # Initialize input handlers
         self._init_input_handlers()
+        # Print initial PD gain status
+        self._print_pd_gain_status()
 
     # ============================================================================
     # Initialization Methods
@@ -464,6 +466,8 @@ class BasePolicy:
             self.command_sender.kp_level += 0.1
         elif keycode == "0":
             self.command_sender.kp_level = 1.0
+        # Print KP and KD scale after adjustment
+        self._print_pd_gain_status()
     
     def _handle_joystick_kp_control(self, keycode):
         """Handle joystick KP control."""
@@ -477,10 +481,16 @@ class BasePolicy:
             self.command_sender.kp_level += 0.01
         elif keycode == "A+Y":
             self.command_sender.kp_level = 1.0
+        # Print KP and KD scale after adjustment
+        self._print_pd_gain_status()
     
     def _print_control_status(self):
         """Print current control status."""
         pass
+    
+    def _print_pd_gain_status(self):
+        """Print current KP and KD scale values."""
+        self.logger.info(colored(f"PD Gain Scale - KP: {self.command_sender.kp_level:.3f}, KD: {self.command_sender.kd_level:.3f}", "yellow"))
 
     # ============================================================================
     # Main Run Method

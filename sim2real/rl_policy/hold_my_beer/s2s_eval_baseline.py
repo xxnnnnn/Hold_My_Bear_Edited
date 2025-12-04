@@ -227,6 +227,38 @@ class S2SEvalPolicy(DecLocomotionPolicy):
         
         return scaled_policy_action
 
+
+    def policy_action(self):
+        cmd_q = np.zeros(self.num_dofs)
+        cmd_dq = np.zeros(self.num_dofs)
+        cmd_tau = np.zeros(self.num_dofs)
+        # Get states
+        robot_state_data = self.state_processor.robot_state_data
+        
+        scaled_policy_action = self.rl_inference(robot_state_data)
+        if self.get_ready_state:
+            q_target = self.get_init_target(robot_state_data)
+            self.init_count = min(self.init_count, 500)
+        elif not self.use_policy_action:
+            q_target = robot_state_data[:, 7 : 7 + self.num_dofs]
+        else:
+            q_target = scaled_policy_action + self.default_dof_angles
+            
+        # 4. 安全限位截断 (Clip)
+        if self.motor_pos_lower_limit_list is not None and self.motor_pos_upper_limit_list is not None:
+            q_target[0] = np.clip(q_target[0], self.motor_pos_lower_limit_list, self.motor_pos_upper_limit_list)
+
+        # 5. 发送指令给机器人硬件 (这一步是代码1缺失的关键)
+        cmd_q = q_target[0]
+        
+        # Debug: 打印当前状态和目标
+        if self.get_ready_state and self.init_count <= 10:
+            print(f"[DEBUG] Init mode: count={self.init_count}, cmd_q[:6]={cmd_q[:6]}")
+
+        # 注意：cmd_dq (速度前馈) 和 cmd_tau (力矩前馈) 这里设为0，依赖底层的 PD 控制器
+        # 最后的参数是当前的真实关节位置，用于底层校准或记录
+        self.command_sender.send_command(cmd_q, cmd_dq, cmd_tau, robot_state_data[0, 7 : 7 + self.num_dofs])
+
     def handle_keyboard_button(self, keycode):
         """Handle keyboard button presses."""
         # EE Control
@@ -273,7 +305,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="S2S Eval")
     # Default to our new config
     parser.add_argument("--config", type=str, default="config/g1/g1_27dof_ee.yaml", help="config file")
-    parser.add_argument("--model_path", type=str,default="models/hold_my_beer/baseline_8000.onnx", help="path to the ONNX model file")
+    parser.add_argument("--model_path", type=str,default="models/hold_my_beer/baseline_ft_10000.onnx", help="path to the ONNX model file")
     args = parser.parse_args()
 
     with open(args.config) as file:

@@ -35,6 +35,9 @@ class BasicSdk2Bridge(ABC):
         # Check if the robot is using sensor data
         self.have_imu_ = False
         self.have_frame_sensor_ = False
+        self.have_ee_imu_ = False
+        self.ee_imu_gyro_sensor_idx = None
+        self.ee_imu_acc_sensor_idx = None
         if self.use_sensor:
             MOTOR_SENSOR_NUM = 3
             self.dim_motor_sensor = MOTOR_SENSOR_NUM * self.num_motor
@@ -45,6 +48,23 @@ class BasicSdk2Bridge(ABC):
                     self.have_imu_ = True
                 if name == "frame_pos":
                     self.have_frame_sensor_ = True
+                if name == "right_hand_imu_gyro":
+                    self.ee_imu_gyro_sensor_idx = i
+                    self.have_ee_imu_ = True
+                if name == "right_hand_imu_acc":
+                    self.ee_imu_acc_sensor_idx = i
+                    self.have_ee_imu_ = True
+        else:
+            # Even if use_sensor is False, we still need to find the sensor indices
+            # because the sensor data is still computed by Mujoco
+            for i in range(self.mj_model.nsensor):
+                name = mujoco.mj_id2name(self.mj_model, mujoco._enums.mjtObj.mjOBJ_SENSOR, i)
+                if name == "right_hand_imu_gyro":
+                    self.ee_imu_gyro_sensor_idx = i
+                    self.have_ee_imu_ = True
+                if name == "right_hand_imu_acc":
+                    self.ee_imu_acc_sensor_idx = i
+                    self.have_ee_imu_ = True
 
         # joystick
         self.key_map = {

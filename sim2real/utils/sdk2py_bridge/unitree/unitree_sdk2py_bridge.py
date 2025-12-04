@@ -1,3 +1,5 @@
+import numpy as np
+
 from ..base import BasicSdk2Bridge
 from unitree_sdk2py.utils.crc import CRC
 
@@ -45,6 +47,14 @@ class UnitreeSdk2Bridge(BasicSdk2Bridge):
         self.wireless_controller_puber = ChannelPublisher("rt/wirelesscontroller", WirelessController_)
         self.wireless_controller_puber.Init()
 
+        # Initialize EE IMU publisher (for end-effector IMU data)
+        from unitree_sdk2py.idl.default import unitree_hg_msg_dds__IMUState_
+        from unitree_sdk2py.idl.unitree_hg.msg.dds_ import IMUState_
+        
+        self.ee_imu_state = unitree_hg_msg_dds__IMUState_()
+        self.ee_imu_puber = ChannelPublisher("rt/ee_imu", IMUState_)
+        self.ee_imu_puber.Init()
+
     def LowCmdHandler(self, msg):
         """Handle Unitree low-level command messages."""
         if msg:
@@ -62,6 +72,32 @@ class UnitreeSdk2Bridge(BasicSdk2Bridge):
         actuator_force = self.mj_data.actuator_force
         num_motors = self.num_motor
         imu = self.low_state.imu_state
+        
+        # Get end-effector IMU data from sensordata
+        ee_imu_acc = None
+        ee_imu_gyro = None
+        if self.have_ee_imu_:
+            if self.ee_imu_gyro_sensor_idx is not None:
+                # Get sensor address and dimension
+                gyro_adr = self.mj_model.sensor_adr[self.ee_imu_gyro_sensor_idx]
+                gyro_dim = self.mj_model.sensor_dim[self.ee_imu_gyro_sensor_idx]  # Should be 3
+                ee_imu_gyro = sensor[gyro_adr:gyro_adr + gyro_dim]
+            
+            if self.ee_imu_acc_sensor_idx is not None:
+                # Get sensor address and dimension
+                acc_adr = self.mj_model.sensor_adr[self.ee_imu_acc_sensor_idx]
+                acc_dim = self.mj_model.sensor_dim[self.ee_imu_acc_sensor_idx]  # Should be 3
+                ee_imu_acc = sensor[acc_adr:acc_adr + acc_dim]
+        
+        # If no EE IMU data available, set to zeros
+        if ee_imu_acc is None:
+            ee_imu_acc = np.zeros(3)
+        if ee_imu_gyro is None:
+            ee_imu_gyro = np.zeros(3)
+        
+        # Store EE IMU data as instance variables for access by other components
+        self.ee_imu_acc = ee_imu_acc
+        self.ee_imu_gyro = ee_imu_gyro
 
         motor_state = self.low_state.motor_state
         if self.use_sensor:
@@ -93,3 +129,11 @@ class UnitreeSdk2Bridge(BasicSdk2Bridge):
         self.low_state.tick = int(self.mj_data.time * 1e3)
         self.low_state.crc = self.crc.Crc(self.low_state)
         self.low_state_puber.Write(self.low_state)
+
+        # Publish EE IMU state (sent sequentially with low_state, so sync is guaranteed)
+        self.ee_imu_state.accelerometer[:] = ee_imu_acc
+        self.ee_imu_state.gyroscope[:] = ee_imu_gyro
+        # Debug: print every 100 ticks
+        if self.low_state.tick % 100 == 0:
+            print(f"[Sender] EE IMU acc: {ee_imu_acc}, gyro: {ee_imu_gyro}, have_ee_imu: {self.have_ee_imu_}")
+        self.ee_imu_puber.Write(self.ee_imu_state)
