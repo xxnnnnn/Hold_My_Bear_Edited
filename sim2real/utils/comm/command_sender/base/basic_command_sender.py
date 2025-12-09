@@ -47,7 +47,7 @@ class BasicCommandSender(ABC):
     def _set_motor_command(self, motor_cmd, motor_id, joint_id, cmd_q, cmd_dq, cmd_tau):
         """Set motor command for a specific motor."""
         default_q = self.robot.DEFAULT_MOTOR_ANGLES
-        
+
         if joint_id == -1 or self.no_action:
             motor_cmd.q = default_q[motor_id]
             motor_cmd.dq = 0.0
@@ -65,7 +65,7 @@ class BasicCommandSender(ABC):
         """Fill motor commands for all motors."""
         joint2motor = self.robot.JOINT2MOTOR
         motor2joint = self.robot.MOTOR2JOINT
-        
+
         for i in range(self.robot.NUM_MOTORS):
             m_id = joint2motor[i]
             j_id = motor2joint[i]

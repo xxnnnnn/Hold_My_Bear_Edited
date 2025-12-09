@@ -376,7 +376,7 @@
                               mesh="right_rubber_hand" />
                             <site name="right_rubber_hand" size="0.01" pos="0.0415 -0.003 0" />
                             <!-- IMU site at body origin (aligned with right_rubber_hand frame) -->
-                            <site name="right_hand_imu" size="0.01" pos="0 0 0" rgba="1 0 0 1" />
+                            <site name="right_hand_imu" size="0.02" pos="0 0 0" rgba="1 0 0 1" />
                           </body>
                         </body>
                       </body>

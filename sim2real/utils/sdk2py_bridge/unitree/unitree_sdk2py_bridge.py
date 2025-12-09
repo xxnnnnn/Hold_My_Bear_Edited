@@ -133,7 +133,4 @@ class UnitreeSdk2Bridge(BasicSdk2Bridge):
         # Publish EE IMU state (sent sequentially with low_state, so sync is guaranteed)
         self.ee_imu_state.accelerometer[:] = ee_imu_acc
         self.ee_imu_state.gyroscope[:] = ee_imu_gyro
-        # Debug: print every 100 ticks
-        if self.low_state.tick % 100 == 0:
-            print(f"[Sender] EE IMU acc: {ee_imu_acc}, gyro: {ee_imu_gyro}, have_ee_imu: {self.have_ee_imu_}")
         self.ee_imu_puber.Write(self.ee_imu_state)

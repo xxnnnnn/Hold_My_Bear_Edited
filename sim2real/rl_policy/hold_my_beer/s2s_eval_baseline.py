@@ -4,6 +4,9 @@ import torch
 import argparse
 import yaml
 import time
+import os
+from datetime import datetime
+from pathlib import Path
 from termcolor import colored
 
 sys.path.append("../")
@@ -12,8 +15,9 @@ sys.path.append("./rl_policy")
 from sim2real.rl_policy.dec_loco.dec_loco import DecLocomotionPolicy
 
 class S2SEvalPolicy(DecLocomotionPolicy):
-    def __init__(self, config, model_path, rl_rate=50, policy_action_scale=0.25):
+    def __init__(self, config, model_path, rl_rate=50, policy_action_scale=0.25, record_joints="upper_body"):
         super().__init__(config, model_path, rl_rate, policy_action_scale)
+        self.record_joints = record_joints  # "upper_body", "lower_body", or "all"
         
         # --- EE Command Initialization ---
         # Hardcoded default values from training config (g1_27dof_fakehand_ee_rrh.yaml)
@@ -48,6 +52,68 @@ class S2SEvalPolicy(DecLocomotionPolicy):
         # Training uses: phase_time = (episode_length_buf * dt + phi_offset) % T / T * stand_command
         self.phase_step_counter = 0
         self.phi_offset = 0.0  # Can be randomized like training, but start with 0 for consistency
+
+        # Initialize wrist data recording structure
+        # Wrist joint indices: joint_id is index in dof_names, motor_id from WeakMotorJointIndex
+        self.wrist_data = {
+            'left': {
+                'roll': {'cmd_pos': [], 'actual_pos': [], 'kp': []},
+                'pitch': {'cmd_pos': [], 'actual_pos': [], 'kp': []},
+                'yaw': {'cmd_pos': [], 'actual_pos': [], 'kp': []}
+            },
+            'right': {
+                'roll': {'cmd_pos': [], 'actual_pos': [], 'kp': []},
+                'pitch': {'cmd_pos': [], 'actual_pos': [], 'kp': []},
+                'yaw': {'cmd_pos': [], 'actual_pos': [], 'kp': []}
+            }
+        }
+        # Wrist joint mapping: (motor_id, joint_id)
+        self.wrist_joint_map = {
+            'left': {
+                'roll': (19, 17),
+                'pitch': (20, 18),
+                'yaw': (21, 19)
+            },
+            'right': {
+                'roll': (26, 24),
+                'pitch': (27, 25),
+                'yaw': (28, 26)
+            }
+        }
+        
+        # Initialize joint data recording structure based on record_joints parameter
+        self.joint_data = {}
+        dof_names = self.config.get("dof_names", [])
+        joint2motor = self.config.get("JOINT2MOTOR", [])
+        
+        # Determine which joints to record
+        if self.record_joints == "upper_body":
+            joint_names_to_record = self.config.get("dof_names_upper_body", [])
+        elif self.record_joints == "lower_body":
+            joint_names_to_record = self.config.get("dof_names_lower_body", [])
+        elif self.record_joints == "all":
+            joint_names_to_record = dof_names
+        else:
+            self.logger.warning(f"Unknown record_joints option: {self.record_joints}, defaulting to upper_body")
+            joint_names_to_record = self.config.get("dof_names_upper_body", [])
+        
+        # Initialize data structure for each joint
+        for joint_name in joint_names_to_record:
+            if joint_name in dof_names:
+                joint_id = dof_names.index(joint_name)
+                motor_id = joint2motor[joint_id] if joint_id < len(joint2motor) else joint_id
+                self.joint_data[joint_name] = {
+                    'motor_id': motor_id,
+                    'joint_id': joint_id,
+                    'cmd_pos': [],
+                    'actual_pos': [],
+                    'kp': []
+                }
+        
+        self.logger.info(f"Initialized joint data recording for {len(self.joint_data)} joints (record_joints={self.record_joints})")
+        
+        # Recording state flag
+        self.is_recording = False
 
         self.logger.info("S2S Eval Policy Initialized with EE Control")
         self.logger.info(f"Initial stand_command: {self.stand_command[0, 0]}")
@@ -232,33 +298,68 @@ class S2SEvalPolicy(DecLocomotionPolicy):
         cmd_q = np.zeros(self.num_dofs)
         cmd_dq = np.zeros(self.num_dofs)
         cmd_tau = np.zeros(self.num_dofs)
-        # Get states
+        # Get states 27 dof data we need
         robot_state_data = self.state_processor.robot_state_data
-        
-        scaled_policy_action = self.rl_inference(robot_state_data)
+
         if self.get_ready_state:
             q_target = self.get_init_target(robot_state_data)
             self.init_count = min(self.init_count, 500)
+
         elif not self.use_policy_action:
             q_target = robot_state_data[:, 7 : 7 + self.num_dofs]
+
         else:
+            scaled_policy_action = self.rl_inference(robot_state_data)
             q_target = scaled_policy_action + self.default_dof_angles
             
         # 4. 安全限位截断 (Clip)
         if self.motor_pos_lower_limit_list is not None and self.motor_pos_upper_limit_list is not None:
             q_target[0] = np.clip(q_target[0], self.motor_pos_lower_limit_list, self.motor_pos_upper_limit_list)
-
-        # 5. 发送指令给机器人硬件 (这一步是代码1缺失的关键)
+            # check the output of q_target
         cmd_q = q_target[0]
+
+        # Only record data if recording is enabled
+        if self.is_recording:
+            # Record wrist data before sending command (to get actual position)
+            # Get actual positions from robot_state_data (index 7 + joint_id)
+            actual_positions = robot_state_data[0, 7 : 7 + self.num_dofs]
+            
+            # Record command positions and actual positions (must be done together to keep lengths consistent)
+            for side in ['left', 'right']:
+                for joint_type in ['roll', 'pitch', 'yaw']:
+                    motor_id, joint_id = self.wrist_joint_map[side][joint_type]
+                    # Record command position
+                    self.wrist_data[side][joint_type]['cmd_pos'].append(float(cmd_q[joint_id]))
+                    # Record actual position
+                    self.wrist_data[side][joint_type]['actual_pos'].append(float(actual_positions[joint_id]))
+
+            # Record joint data before sending command (to get actual position)
+            for joint_name, joint_info in self.joint_data.items():
+                joint_id = joint_info['joint_id']
+                # Record command position
+                joint_info['cmd_pos'].append(float(cmd_q[joint_id]))
+                # Record actual position
+                joint_info['actual_pos'].append(float(actual_positions[joint_id]))
+
+        self.command_sender.send_command(cmd_q, cmd_dq, cmd_tau)
         
-        # Debug: 打印当前状态和目标
-        if self.get_ready_state and self.init_count <= 10:
-            print(f"[DEBUG] Init mode: count={self.init_count}, cmd_q[:6]={cmd_q[:6]}")
-
-        # 注意：cmd_dq (速度前馈) 和 cmd_tau (力矩前馈) 这里设为0，依赖底层的 PD 控制器
-        # 最后的参数是当前的真实关节位置，用于底层校准或记录
-        self.command_sender.send_command(cmd_q, cmd_dq, cmd_tau, robot_state_data[0, 7 : 7 + self.num_dofs])
-
+        # Record kp values after sending command (kp is set in send_command)
+        if self.is_recording:
+            for side in ['left', 'right']:
+                for joint_type in ['roll', 'pitch', 'yaw']:
+                    motor_id, joint_id = self.wrist_joint_map[side][joint_type]
+                    # Get kp from motor_cmd
+                    kp_value = self.command_sender.low_cmd.motor_cmd[motor_id].kp
+                    self.wrist_data[side][joint_type]['kp'].append(float(kp_value))
+            
+            # Record kp values for tracked joints
+            for joint_name, joint_info in self.joint_data.items():
+                motor_id = joint_info['motor_id']
+                # Get kp from motor_cmd
+                kp_value = self.command_sender.low_cmd.motor_cmd[motor_id].kp
+                joint_info['kp'].append(float(kp_value))
+        #self.command_sender.send_command(cmd_q, cmd_dq, cmd_tau, robot_state_data[0, 7 : 7 + self.num_dofs])
+    
     def handle_keyboard_button(self, keycode):
         """Handle keyboard button presses."""
         # EE Control
@@ -297,15 +398,105 @@ class S2SEvalPolicy(DecLocomotionPolicy):
             self.gait_command[0, 0] -= 0.05
             self.gait_period = self.gait_command[0, 0]
             self.logger.info(f"Gait Period: {self.gait_period:.2f}")
+        elif keycode == "p":
+            if not self.is_recording:
+                # Start recording
+                self.is_recording = True
+                # Clear existing data
+                self._clear_recorded_data()
+                self.logger.info("Started recording joint data")
+            else:
+                # Stop recording and save
+                self.is_recording = False
+                # Get next exp folder and timestamp
+                exp_folder, timestamp = self._get_next_exp_folder()
+                self._save_joint_data(exp_folder, timestamp)
+                self.logger.info(f"Stopped recording and saved joint data to {exp_folder}")
+                # Clear data after saving
+                self._clear_recorded_data()
         else:
             # Call parent (DecLocomotionPolicy) to handle WASD, QE, Z, etc.
             super().handle_keyboard_button(keycode)
+    
+    def _get_next_exp_folder(self):
+        """Get the next available exp folder (exp1, exp2, exp3, ...)."""
+        results_dir = Path("results")
+        results_dir.mkdir(exist_ok=True)
+        
+        # Find the highest existing exp number
+        max_exp_num = 0
+        for item in results_dir.iterdir():
+            if item.is_dir() and item.name.startswith("exp"):
+                try:
+                    exp_num = int(item.name[3:])  # Extract number after "exp"
+                    max_exp_num = max(max_exp_num, exp_num)
+                except ValueError:
+                    continue
+        
+        # Create next exp folder
+        next_exp_num = max_exp_num + 1
+        exp_folder = results_dir / f"exp{next_exp_num}"
+        exp_folder.mkdir(exist_ok=True)
+        
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        return exp_folder, timestamp
+    
+    def _clear_recorded_data(self):
+        """Clear all recorded data."""
+        # Clear wrist data
+        for side in ['left', 'right']:
+            for joint_type in ['roll', 'pitch', 'yaw']:
+                self.wrist_data[side][joint_type]['cmd_pos'] = []
+                self.wrist_data[side][joint_type]['actual_pos'] = []
+                self.wrist_data[side][joint_type]['kp'] = []
+        
+        # Clear joint data
+        for joint_name, joint_info in self.joint_data.items():
+            joint_info['cmd_pos'] = []
+            joint_info['actual_pos'] = []
+            joint_info['kp'] = []
+    
+    def _save_joint_data(self, exp_folder, timestamp):
+        """Save joint data to file."""
+        filename = exp_folder / f"joint_data_{timestamp}.npz"
+        
+        # Convert lists to numpy arrays for saving
+        save_dict = {}
+        
+        # Save wrist data (for backward compatibility)
+        for side in ['left', 'right']:
+            for joint_type in ['roll', 'pitch', 'yaw']:
+                for data_type in ['cmd_pos', 'actual_pos', 'kp']:
+                    key = f"{side}_{joint_type}_{data_type}"
+                    save_dict[key] = np.array(self.wrist_data[side][joint_type][data_type])
+        
+        # Save tracked joint data
+        joint_names = []
+        for joint_name, joint_info in self.joint_data.items():
+            # Replace spaces and special characters with underscores for key names
+            safe_name = joint_name.replace(' ', '_').replace('-', '_')
+            joint_names.append(joint_name)
+            
+            save_dict[f"{safe_name}_cmd_pos"] = np.array(joint_info['cmd_pos'])
+            save_dict[f"{safe_name}_actual_pos"] = np.array(joint_info['actual_pos'])
+            save_dict[f"{safe_name}_kp"] = np.array(joint_info['kp'])
+        
+        # Save metadata
+        save_dict['joint_names'] = np.array(joint_names, dtype=object)
+        save_dict['record_range'] = np.array([self.record_joints], dtype=object)
+        
+        np.savez(filename, **save_dict)
+        self.logger.info(f"Joint data saved to {filename} ({len(joint_names)} joints, range={self.record_joints})")
+    
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="S2S Eval")
     # Default to our new config
-    parser.add_argument("--config", type=str, default="config/g1/g1_27dof_ee.yaml", help="config file")
+    parser.add_argument("--config", type=str, default="config/g1/g1_27dof_ee_real.yaml", help="config file")
     parser.add_argument("--model_path", type=str,default="models/hold_my_beer/baseline_ft_10000.onnx", help="path to the ONNX model file")
+    parser.add_argument("--record_joints", type=str, default="upper_body", 
+                        choices=["upper_body", "lower_body", "all"],
+                        help="Which joints to record: upper_body, lower_body, or all (default: upper_body)")
     args = parser.parse_args()
 
     with open(args.config) as file:
@@ -315,6 +506,6 @@ if __name__ == "__main__":
     if not model_path:
         raise ValueError("model_path must be provided")
 
-    policy = S2SEvalPolicy(config, model_path)
+    policy = S2SEvalPolicy(config, model_path, record_joints=args.record_joints)
     policy.run()
 

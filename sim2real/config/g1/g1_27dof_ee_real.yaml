@@ -4,15 +4,15 @@ ASSET_ROOT: "../humanoidverse/data/robots/g1"
 ASSET_FILE: "../humanoidverse/data/robots/g1/g1_27dof_fakehand.urdf"
 
 
-# Model path for the trained policy
-model_path: "models/loco/g1_27dof.onnx"
+# # Model path for the trained policy
+# model_path: "models/loco/g1_27dof.onnx"
 
 SDK_TYPE: "unitree"
 MOTOR_TYPE: "serial"
 
 ## SIM
 DOMAIN_ID: 0
-INTERFACE: "lo" #enp8s0
+INTERFACE: "enp8s0" #enp8s0
 FREE_BASE: True
 PRINT_SCENE_INFORMATION: True
 ENABLE_ELASTIC_BAND: True
@@ -41,14 +41,15 @@ end_effector_name: ["right_rubber_hand"]
 MOTOR2JOINT: [0, 1, 2, 3, 4, 5,
               6, 7, 8, 9, 10, 11,
               12, 
+
               13, 14, 15, 16, 17, 18, 19, 
               20, 21, 22, 23, 24, 25, 26]
             
 JOINT2MOTOR: [0, 1, 2, 3, 4, 5,
               6, 7, 8, 9, 10, 11,
               12, 
-              13, 14, 15, 16, 17, 18, 19, 
-              20, 21, 22, 23, 24, 25, 26]
+              15, 16, 17, 18, 19, 20, 21, 
+              22, 23, 24, 25, 26, 27, 28]
 
 UNITREE_LEGGED_CONST:
   HIGHLEVEL: 0xEE
@@ -62,26 +63,13 @@ UNITREE_LEGGED_CONST:
 # PD Gains (Must match training config: g1_27dof_fakehand_ee_rrh.yaml)
 # Joint order: left_leg(6), right_leg(6), waist(1), left_arm(7), right_arm(7) = 27 total
 # Training config: waist_yaw stiffness=200 (not 300!)
-JOINT_KP: [
-    100, 100, 100, 200, 20, 20,  # left_leg: hip_yaw, hip_roll, hip_pitch, knee, ankle_pitch, ankle_roll
-    100, 100, 100, 200, 20, 20,  # right_leg: hip_yaw, hip_roll, hip_pitch, knee, ankle_pitch, ankle_roll
-    200,                          # waist_yaw (FIXED: was 300, should be 200 to match training)
-    90, 60, 20, 60, 4, 4, 4,     # left_arm: shoulder_pitch, shoulder_roll, shoulder_yaw, elbow, wrist_roll, wrist_pitch, wrist_yaw
-    90, 60, 20, 60, 4, 4, 4      # right_arm: shoulder_pitch, shoulder_roll, shoulder_yaw, elbow, wrist_roll, wrist_pitch, wrist_yaw
-]
 
-JOINT_KD: [
-   2.5, 2.5, 2.5, 5, 0.2, 0.1,   # left_leg
-   2.5, 2.5, 2.5, 5, 0.2, 0.1,   # right_leg
-   5.0,                           # waist_yaw
-   2.0, 1.0, 0.4, 1.0, 0.2, 0.2, 0.2,  # left_arm
-   2.0, 1.0, 0.4, 1.0, 0.2, 0.2, 0.2   # right_arm
-]
 
 MOTOR_KP: [
     100, 100, 100, 200, 20, 20,  # left_leg
     100, 100, 100, 200, 20, 20,  # right_leg
-    200,                          # waist_yaw (FIXED: was 300, should be 200 to match training)
+    200,
+    300, 300,                         # waist_yaw (FIXED: was 300, should be 200 to match training)
     90, 60, 20, 60, 4, 4, 4,     # left_arm
     90, 60, 20, 60, 4, 4, 4      # right_arm
 ]
@@ -89,7 +77,8 @@ MOTOR_KP: [
 MOTOR_KD: [
    2.5, 2.5, 2.5, 5, 0.2, 0.1,   # left_leg
    2.5, 2.5, 2.5, 5, 0.2, 0.1,   # right_leg
-   5.0,                           # waist_yaw
+   5.0, 
+   5.0, 5.0,                        # waist_yaw
    2.0, 1.0, 0.4, 1.0, 0.2, 0.2, 0.2,  # left_arm
    2.0, 1.0, 0.4, 1.0, 0.2, 0.2, 0.2   # right_arm
 ]
@@ -121,9 +110,6 @@ dof_names_lower_body: ['left_hip_pitch_joint', 'left_hip_roll_joint', 'left_hip_
                       'right_knee_joint', 'right_ankle_pitch_joint', 'right_ankle_roll_joint',
                       'waist_yaw_joint']
 
-left_hand_link_name: "left_rubber_hand"
-right_hand_link_name: "right_rubber_hand"
-
 WeakMotorJointIndex:
   left_hip_pitch_joint: 0
   left_hip_roll_joint: 1
@@ -138,20 +124,20 @@ WeakMotorJointIndex:
   right_ankle_pitch_joint: 10
   right_ankle_roll_joint: 11
   waist_yaw_joint : 12
-  left_shoulder_pitch_joint: 13
-  left_shoulder_roll_joint: 14
-  left_shoulder_yaw_joint: 15
-  left_elbow_joint: 16
-  left_wrist_roll_joint: 17
-  left_wrist_pitch_joint: 18
-  left_wrist_yaw_joint: 19
-  right_shoulder_pitch_joint: 20
-  right_shoulder_roll_joint: 21
-  right_shoulder_yaw_joint: 22
-  right_elbow_joint: 23
-  right_wrist_roll_joint: 24
-  right_wrist_pitch_joint: 25
-  right_wrist_yaw_joint: 26
+  left_shoulder_pitch_joint: 15
+  left_shoulder_roll_joint: 16
+  left_shoulder_yaw_joint: 17
+  left_elbow_joint: 18
+  left_wrist_roll_joint: 19
+  left_wrist_pitch_joint: 20
+  left_wrist_yaw_joint: 21
+  right_shoulder_pitch_joint: 22
+  right_shoulder_roll_joint: 23
+  right_shoulder_yaw_joint: 24
+  right_elbow_joint: 25
+  right_wrist_roll_joint: 26
+  right_wrist_pitch_joint: 27
+  right_wrist_yaw_joint: 28
 
 NUM_MOTORS: 27
 NUM_JOINTS: 27
@@ -190,7 +176,7 @@ DEFAULT_DOF_ANGLES: [
 DEFAULT_MOTOR_ANGLES: [
     -0.1, 0.0, 0.0, 0.3, -0.2, 0.0,  # left leg: pitch, roll, yaw, knee, ankle_pitch, ankle_roll
     -0.1, 0.0, 0.0, 0.3, -0.2, 0.0,  # right leg: pitch, roll, yaw, knee, ankle_pitch, ankle_roll
-    0.0,  # waist_yaw
+    0.0, 0.0, 0.0, # waist_yaw
     0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # left arm: shoulder_pitch, roll, yaw, elbow, wrist_roll, pitch, yaw
     0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0  # right arm: shoulder_pitch, roll, yaw, elbow, wrist_roll, pitch, yaw
 ]

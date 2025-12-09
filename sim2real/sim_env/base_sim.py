@@ -38,7 +38,7 @@ class BaseSimulator:
         self.viewer_dt = self.config["VIEWER_DT"]
         self.torques = np.zeros(self.num_dof)
         self.logger = logger
-        self.rate = RateLimiter(1 / self.config["SIMULATE_DT"])
+        self.rate = RateLimiter(1 / self.config["SIMULATE_DT"],warn=False)
 
     def init_factory(self):
         if self.sdk_type == "unitree":
@@ -97,12 +97,13 @@ class BaseSimulator:
         if self.robot_bridge.low_cmd:
             motor_cmd = list(self.robot_bridge.low_cmd.motor_cmd)
             try:
-                for i in range(self.robot_bridge.num_motor):
+                for i in range(self.robot_bridge.num_motor):    
                     self.torques[i] = (
                         motor_cmd[i].tau
                         + motor_cmd[i].kp * (motor_cmd[i].q - self.mj_data.qpos[7 + i])
                         + motor_cmd[i].kd * (motor_cmd[i].dq - self.mj_data.qvel[6 + i])
                     )
+                   
             except Exception as e:
                 self.logger.error(str.format("Joint {0} not found in motor_cmd: {1}", i, e))
         # Set the torque limit
@@ -142,7 +143,7 @@ class BaseSimulator:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Robot")
-    parser.add_argument("--config", type=str, default="config/g1/g1_27dof_ee_imu.yaml", help="config file")
+    parser.add_argument("--config", type=str, default="config/g1/g1_27dof_ee_sim.yaml", help="config file")
     args = parser.parse_args()
 
     with open(args.config) as file:
