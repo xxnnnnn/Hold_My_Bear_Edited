@@ -57,7 +57,7 @@ UNITREE_LEGGED_CONST:
   TRIGERLEVEL: 0xF0
   PosStopF: 2146000000.0
   VelStopF: 16000.0
-  MODE_MACHINE: 6
+  MODE_MACHINE: 5
   MODE_PR:  0
 
 # PD Gains (Must match training config: g1_27dof_fakehand_ee_rrh.yaml)

@@ -46,21 +46,26 @@ class UnitreeCommandSender(BasicCommandSender):
         self.low_cmd.level_flag = 0xFF
         self.low_cmd.gpio = 0
         
-        for i in range(self.robot.NUM_MOTORS):
-            if self.is_weak_motor(i):
-                self.low_cmd.motor_cmd[i].mode = 0x01
+        # Get the actual motor IDs to initialize from JOINT2MOTOR mapping
+        # This handles cases where NUM_MOTORS (joint count) differs from actual motor count
+        # e.g., 27 joints mapping to motors 0-12, 15-28 (skipping 13,14 for waist_roll/pitch)
+        motor_ids_to_init = set(self.robot.JOINT2MOTOR)
+        
+        for motor_id in motor_ids_to_init:
+            if self.is_weak_motor(motor_id):
+                self.low_cmd.motor_cmd[motor_id].mode = 0x01
             else:
-                self.low_cmd.motor_cmd[i].mode = 0x0A
-            self.low_cmd.motor_cmd[i].q = self.robot.UNITREE_LEGGED_CONST["PosStopF"]
-            self.low_cmd.motor_cmd[i].kp = 0
-            self.low_cmd.motor_cmd[i].dq = self.robot.UNITREE_LEGGED_CONST["VelStopF"]
-            self.low_cmd.motor_cmd[i].kd = 0
-            self.low_cmd.motor_cmd[i].tau = 0
-            
-            # Set mode for g1/h1-2 (needs mode_machine and mode_pr for HG robots)
-            if "g1" in robot_type or "h1-2" in robot_type:
-                self.low_cmd.mode_machine = self.config["UNITREE_LEGGED_CONST"]["MODE_MACHINE"]
-                self.low_cmd.mode_pr = self.config["UNITREE_LEGGED_CONST"]["MODE_PR"]
+                self.low_cmd.motor_cmd[motor_id].mode = 0x0A
+            self.low_cmd.motor_cmd[motor_id].q = self.robot.UNITREE_LEGGED_CONST["PosStopF"]
+            self.low_cmd.motor_cmd[motor_id].kp = 0
+            self.low_cmd.motor_cmd[motor_id].dq = self.robot.UNITREE_LEGGED_CONST["VelStopF"]
+            self.low_cmd.motor_cmd[motor_id].kd = 0
+            self.low_cmd.motor_cmd[motor_id].tau = 0
+        
+        # Set mode for g1/h1-2 (needs mode_machine and mode_pr for HG robots)
+        if "g1" in robot_type or "h1-2" in robot_type:
+            self.low_cmd.mode_machine = self.config["UNITREE_LEGGED_CONST"]["MODE_MACHINE"]
+            self.low_cmd.mode_pr = self.config["UNITREE_LEGGED_CONST"]["MODE_PR"]
 
     def send_command(self, cmd_q, cmd_dq, cmd_tau, dof_pos_latest=None):
         """Send command to Unitree robot."""
