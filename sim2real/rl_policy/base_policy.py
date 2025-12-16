@@ -25,9 +25,12 @@ class BasePolicy:
     Supports both simulation and real robot deployment with keyboard/joystick controls.
     """
     
-    def __init__(self, config, model_path, rl_rate=50, policy_action_scale=0.25):
+    def __init__(self, config, model_path, rl_rate=None, policy_action_scale=0.25):
         """Initialize the base policy with configuration and model."""
         self.config = config
+        # Use rl_rate from config if not provided (default 100Hz to match training)
+        if rl_rate is None:
+            rl_rate = config.get("rl_rate", 100)
         # Initialize robot config
         self._init_robot_config()
         # Initialize SDK components
@@ -38,6 +41,8 @@ class BasePolicy:
         self._init_communication_components()
         # Initialize policy components
         self._init_policy_components(model_path, policy_action_scale, rl_rate)
+        # Store rl_rate for use in rate handler
+        self.rl_rate = rl_rate
         # Initialize command components
         self._init_command_components()
         # Initialize input handlers
@@ -121,7 +126,58 @@ class BasePolicy:
         self.last_policy_action = np.zeros((1, self.num_dofs))
         self.scaled_policy_action = np.zeros((1, self.num_dofs))
         self.policy_action_scale = policy_action_scale
+        
+        # ============================================================================
+        # Frequency Control Configuration (Matching Training Code)
+        # Training uses: upper_body: 100Hz, lower_body: 50Hz
+        # Main loop runs at 100Hz, lower_body updates every 2 steps
+        # ============================================================================
+        self.actor_deploy_freq = self.config.get("actor_deploy_freq", {
+            "upper_body": 1,  # 100Hz (update every step)
+            "lower_body": 2   # 50Hz (update every 2 steps)
+        })
+        
+        # Step counters for each body part
+        self.actor_step_counters = {
+            "upper_body": 0,
+            "lower_body": 0
+        }
+        
+        # Previous actions for reuse when not updating
+        self.previous_actions = {
+            "upper_body": None,
+            "lower_body": None
+        }
+        
+        # Body keys order (from config, default ["lower_body", "upper_body"])
+        self.body_keys = self.config.get("body_keys", ["lower_body", "upper_body"])
+        
+        # Setup action indices for upper/lower body
+        self._setup_action_indices()
     
+    def _setup_action_indices(self):
+        """Setup action indices for upper and lower body based on body_keys order."""
+        # Get dimensions from config
+        num_lower_dofs = len(self.lower_dof_names) if self.lower_dof_names else 13
+        num_upper_dofs = len(self.upper_dof_names) if self.upper_dof_names else self.num_upper_dofs
+        
+        # Determine action indices based on body_keys order
+        if self.body_keys[0] == "lower_body":
+            self.lower_body_action_start = 0
+            self.lower_body_action_end = num_lower_dofs
+            self.upper_body_action_start = num_lower_dofs
+            self.upper_body_action_end = num_lower_dofs + num_upper_dofs
+        elif self.body_keys[0] == "upper_body":
+            self.upper_body_action_start = 0
+            self.upper_body_action_end = num_upper_dofs
+            self.lower_body_action_start = num_upper_dofs
+            self.lower_body_action_end = num_upper_dofs + num_lower_dofs
+        else:
+            raise ValueError(f"Unknown body_keys order: {self.body_keys}")
+        
+        self.num_lower_action_dofs = num_lower_dofs
+        self.num_upper_action_dofs = num_upper_dofs
+
     def _init_command_components(self):
         """Initialize control-related components and commands."""
         self.use_policy_action = False
@@ -153,7 +209,9 @@ class BasePolicy:
         """Initialize ROS handler if enabled."""
         from loguru import logger
         self.logger = logger
-        self.rate = RateLimiter(self.config.get("rl_rate", 50))
+        # Use rl_rate from instance (already set from config in __init__)
+        # Default 100Hz to match training (upper_body runs at 100Hz, lower_body at 50Hz)
+        self.rate = RateLimiter(self.rl_rate)
     
     def _init_input_device(self):
         """Initialize input device (joystick or keyboard)."""
@@ -243,13 +301,60 @@ class BasePolicy:
         return obs_dim_dict
     
     def rl_inference(self, robot_state_data):
-        """Perform RL inference to get policy action."""
+        """Perform RL inference to get policy action with frequency control.
+        
+        Implements asymmetric frequency control matching training code:
+        - upper_body: 100Hz (updates every step)
+        - lower_body: 50Hz (updates every 2 steps)
+        """
         obs = self.prepare_obs_for_rl(robot_state_data)
         policy_action = self.policy(obs)
         policy_action = np.clip(policy_action, -100, 100)
         
-        self.last_policy_action = policy_action.copy()
-        self.scaled_policy_action = policy_action * self.policy_action_scale
+        # Split action into upper and lower body parts
+        lower_body_action = policy_action[:, self.lower_body_action_start:self.lower_body_action_end]
+        upper_body_action = policy_action[:, self.upper_body_action_start:self.upper_body_action_end]
+        
+        # Apply frequency control for each body part
+        actions_dict = {}
+        
+        for key in ["upper_body", "lower_body"]:
+            freq = self.actor_deploy_freq[key]
+            
+            if self.actor_step_counters[key] % freq == 0:
+                # Time to update action
+                if key == "upper_body":
+                    actions_dict[key] = upper_body_action
+                else:  # lower_body
+                    actions_dict[key] = lower_body_action
+                # Save as previous action for reuse
+                self.previous_actions[key] = actions_dict[key].copy()
+            else:
+                # Reuse previous action
+                if self.previous_actions[key] is not None:
+                    actions_dict[key] = self.previous_actions[key]
+                else:
+                    # First time, use current action
+                    if key == "upper_body":
+                        actions_dict[key] = upper_body_action
+                    else:
+                        actions_dict[key] = lower_body_action
+                    self.previous_actions[key] = actions_dict[key].copy()
+            
+            # Increment step counter
+            self.actor_step_counters[key] += 1
+        
+        # Combine actions in the order specified by body_keys
+        if self.body_keys[0] == "lower_body":
+            combined_action = np.concatenate([actions_dict["lower_body"], actions_dict["upper_body"]], axis=1)
+        else:
+            combined_action = np.concatenate([actions_dict["upper_body"], actions_dict["lower_body"]], axis=1)
+        
+        # Save combined action for history
+        self.last_policy_action = combined_action.copy()
+        
+        # Scale action
+        self.scaled_policy_action = combined_action * self.policy_action_scale
         
         return self.scaled_policy_action
 
@@ -433,7 +538,19 @@ class BasePolicy:
         """Handle start policy action."""
         self.use_policy_action = True
         self.get_ready_state = False
-        self.logger.info(colored("Using policy actions", "blue"))
+        
+        # Reset step counters for frequency control
+        self.actor_step_counters = {
+            "upper_body": 0,
+            "lower_body": 0
+        }
+        # Reset previous actions
+        self.previous_actions = {
+            "upper_body": None,
+            "lower_body": None
+        }
+        
+        self.logger.info(colored("Using policy actions (upper_body: 100Hz, lower_body: 50Hz)", "blue"))
         self.phase = 0.0
         if hasattr(self.command_sender, 'no_action'):
             self.command_sender.no_action = 0

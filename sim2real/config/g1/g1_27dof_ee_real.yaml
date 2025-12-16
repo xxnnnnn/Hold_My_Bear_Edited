@@ -12,7 +12,7 @@ MOTOR_TYPE: "serial"
 
 ## SIM
 DOMAIN_ID: 0
-INTERFACE: "enp8s0" #enp8s0
+INTERFACE: "lo" #enp8s0
 FREE_BASE: True
 PRINT_SCENE_INFORMATION: True
 ENABLE_ELASTIC_BAND: True
@@ -33,6 +33,14 @@ use_upper_body_controller: False
 
 GAIT_PERIOD: 0.9
 DESIRED_BASE_HEIGHT: 0.75
+
+# Frequency control (matching training code)
+# Main loop runs at 100Hz, lower_body updates every 2 steps = 50Hz
+rl_rate: 100
+body_keys: ["lower_body", "upper_body"]
+actor_deploy_freq:
+  upper_body: 1  # 100Hz (update every step)
+  lower_body: 2  # 50Hz (update every 2 steps)
 
 num_end_effectors: 1
 end_effector_name: ["right_rubber_hand"]

@@ -15,8 +15,11 @@ from termcolor import colored
 
 class DecLocomotionPolicy(BasePolicy):
     def __init__(
-        self, config, model_path, rl_rate=50, policy_action_scale=0.25
+        self, config, model_path, rl_rate=None, policy_action_scale=0.25
     ):
+        # Use rl_rate from config if not provided (default 100Hz to match training)
+        if rl_rate is None:
+            rl_rate = config.get("rl_rate", 100)
         super().__init__(config, model_path, rl_rate, policy_action_scale)
         self.num_lower_dofs = self.num_dofs - self.num_upper_dofs
 
