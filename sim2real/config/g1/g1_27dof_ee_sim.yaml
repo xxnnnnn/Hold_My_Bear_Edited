@@ -72,21 +72,38 @@ UNITREE_LEGGED_CONST:
 # Training config: waist_yaw stiffness=200 (not 300!)
 
 
+# MOTOR_KP: [
+#     100, 100, 100, 200, 20, 20,  # left_leg
+#     100, 100, 100, 200, 20, 20,  # right_leg
+#     300,                   # waist_yaw (FIXED: was 300, should be 200 to match training)
+#     90, 60, 20, 60, 4, 4, 4,     # left_arm
+#     90, 60, 20, 60, 4, 4, 4      # right_arm
+# ]
+
 MOTOR_KP: [
-    100, 100, 100, 200, 20, 20,  # left_leg
-    100, 100, 100, 200, 20, 20,  # right_leg
-    200,                   # waist_yaw (FIXED: was 300, should be 200 to match training)
-    90, 60, 20, 60, 4, 4, 4,     # left_arm
-    90, 60, 20, 60, 4, 4, 4      # right_arm
-]
+      120, 120, 120, 240, 22, 22,
+      120, 120, 120, 240, 22, 22,
+      400, 
+      90,  60,  20,  60,  20, 20, 20,
+      90,  60,  20,  60,  20, 20, 20
+      ]
+      
+
+# MOTOR_KD: [
+#    2.5, 2.5, 2.5, 5, 0.2, 0.1,   # left_leg
+#    2.5, 2.5, 2.5, 5, 0.2, 0.1,   # right_leg
+#    5.0,                      # waist_yaw
+#    2.0, 1.0, 0.4, 1.0, 0.2, 0.2, 0.2,  # left_arm
+#    2.0, 1.0, 0.4, 1.0, 0.2, 0.2, 0.2   # right_arm
+# ]
 
 MOTOR_KD: [
-   2.5, 2.5, 2.5, 5, 0.2, 0.1,   # left_leg
-   2.5, 2.5, 2.5, 5, 0.2, 0.1,   # right_leg
-   5.0,                      # waist_yaw
-   2.0, 1.0, 0.4, 1.0, 0.2, 0.2, 0.2,  # left_arm
-   2.0, 1.0, 0.4, 1.0, 0.2, 0.2, 0.2   # right_arm
-]
+      2.5, 2.5, 2.5, 5.0, 0.2, 0.1,
+      2.5, 2.5, 2.5, 5.0, 0.2, 0.1,
+      5.0,
+      2.0, 1.0, 0.4, 1.0, 0.4, 0.4, 0.4,
+      2.0, 1.0, 0.4, 1.0, 0.4, 0.4, 0.4
+      ]
 
 dof_names: ['left_hip_pitch_joint', 'left_hip_roll_joint', 'left_hip_yaw_joint', 
             'left_knee_joint', 'left_ankle_pitch_joint', 'left_ankle_roll_joint',

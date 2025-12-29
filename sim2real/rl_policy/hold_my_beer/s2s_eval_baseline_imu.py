@@ -95,7 +95,7 @@ class S2SEvalPolicy(DecLocomotionPolicy):
         current_obs_buffer_dict["command_gait"] = self.gait_command
         current_obs_buffer_dict["ee_imu_acc"] = self._get_ee_imu_acc(robot_state_data)
         current_obs_buffer_dict["ee_imu_gyro"] = self._get_ee_imu_gyro(robot_state_data)
-        
+                       
         # 3. Add state info
         # Note: new model uses full 27 dof actions history
         current_obs_buffer_dict["actions"] = self.last_policy_action 
@@ -166,8 +166,56 @@ class S2SEvalPolicy(DecLocomotionPolicy):
                 print(f"  ee_command:           {ee_cmd}")
         print(f"{'='*50}\n")
     
+    def _print_scaled_obs_values(self, current_obs_buffer_dict, current_obs_dict):
+        """Print scaled observation values."""
+        print(f"\n{'='*60}")
+        print(f"Scaled Observation Values (after scale):")
+        print(f"{'='*60}")
+        
+        for obs_key in self.obs_dict:
+            obs_keys = sorted(self.obs_dict[obs_key])
+            scaled_obs = current_obs_dict[obs_key]
+            
+            print(f"\nObservation Group: '{obs_key}'")
+            start_idx = 0
+            for key in obs_keys:
+                if key in current_obs_buffer_dict:
+                    data = current_obs_buffer_dict[key]
+                    scale = self.obs_scales.get(key, 1.0)
+                    scaled_data = data * scale
+                    
+                    # Handle both 1D and 2D arrays
+                    if len(scaled_data.shape) == 1:
+                        dim = scaled_data.shape[0]
+                        values = scaled_data
+                    else:
+                        dim = scaled_data.shape[-1]
+                        values = scaled_data[0]  # Take first batch
+                    
+                    # Format values for printing
+                    if dim <= 6:
+                        # Print all values if dimension is small
+                        value_str = ", ".join([f"{v:.4f}" for v in values])
+                        print(f"  {key:<30} [{start_idx:4d}-{start_idx+dim-1:4d}] scale={scale:.3f}: [{value_str}]")
+                    else:
+                        # Print first 3 and last 3 if dimension is large
+                        value_str_start = ", ".join([f"{v:.4f}" for v in values[:3]])
+                        value_str_end = ", ".join([f"{v:.4f}" for v in values[-3:]])
+                        print(f"  {key:<30} [{start_idx:4d}-{start_idx+dim-1:4d}] scale={scale:.3f}: [{value_str_start} ... {value_str_end}]")
+                    
+                    start_idx += dim
+                else:
+                    print(f"  [WARNING] {key} not found in current_obs_buffer_dict")
+        
+        print(f"{'='*60}\n")
+    
     def rl_inference(self, robot_state_data):
         """Perform RL inference to get policy action."""
+        # Get current obs buffer dict (before scale)
+        current_obs_buffer_dict = self.get_current_obs_buffer_dict(robot_state_data)
+        # Parse and scale observations
+        current_obs_dict = self.parse_current_obs_dict(current_obs_buffer_dict)
+        # Prepare final obs for RL (with history)
         obs = self.prepare_obs_for_rl(robot_state_data)
         
         # Print observation structure on first call
@@ -185,6 +233,15 @@ class S2SEvalPolicy(DecLocomotionPolicy):
             self.logger.info(f"Command stand: {self.stand_command}")
             self.logger.info(f"Phase time: {self.phase_time}")
             self._debug_printed = True
+        
+        # Print scaled obs values (limited frequency)
+        if not hasattr(self, '_obs_print_count'):
+            self._obs_print_count = 0
+        self._obs_print_count += 1
+        
+        # Print on first call and every 100 steps
+        if self._obs_print_count == 1 or self._obs_print_count % 100 == 0:
+            self._print_scaled_obs_values(current_obs_buffer_dict, current_obs_dict)
         
         policy_action = self.policy(obs)
         policy_action = np.clip(policy_action, -100, 100)
